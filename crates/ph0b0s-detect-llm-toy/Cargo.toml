@@ -1,0 +1,28 @@
+[package]
+name        = "ph0b0s-detect-llm-toy"
+description = "Smoke-test detector: LLM-driven 'list any obvious issues' agent"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+
+[dependencies]
+ph0b0s-core = { workspace = true }
+async-trait = { workspace = true }
+tokio       = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+schemars    = { workspace = true }
+thiserror   = { workspace = true }
+tracing     = { workspace = true }
+walkdir     = { workspace = true }
+sha2        = { workspace = true }
+hex         = { workspace = true }
+chrono      = { workspace = true }
+ulid        = { workspace = true }
+
+[dev-dependencies]
+ph0b0s-test-support = { workspace = true }
+tokio = { workspace = true }
