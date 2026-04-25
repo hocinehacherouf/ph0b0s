@@ -1,0 +1,28 @@
+[package]
+name        = "ph0b0s-core"
+description = "ph0b0s seam: domain types and traits for vendor-neutral AppSec"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+
+[dependencies]
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+schemars    = { workspace = true }
+thiserror   = { workspace = true }
+async-trait = { workspace = true }
+tracing     = { workspace = true }
+tokio       = { workspace = true }
+tokio-util  = { workspace = true }
+chrono      = { workspace = true }
+ulid        = { workspace = true }
+sha2        = { workspace = true }
+hex         = { workspace = true }
+tempfile    = { workspace = true }
+
+[dev-dependencies]
+serde_json  = { workspace = true }
+proptest    = { workspace = true }

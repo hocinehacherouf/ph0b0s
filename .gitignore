@@ -1,0 +1,28 @@
+/target
+**/*.rs.bk
+*.profraw
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local secrets / runtime state
+.env
+.env.local
+ph0b0s.local.toml
+**/findings.db
+**/findings.db-*
+
+# Snapshots-in-progress
+**/*.pending-snap
+
+# Reports
+report.sarif
+report.md
+report.json

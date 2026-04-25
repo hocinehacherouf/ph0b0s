@@ -1,0 +1,21 @@
+[package]
+name        = "ph0b0s-llm-adk"
+description = "Adapter binding adk-rust to the ph0b0s LlmAgent and ToolHost seam traits"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+
+[dependencies]
+ph0b0s-core = { workspace = true }
+async-trait = { workspace = true }
+tokio       = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+tracing     = { workspace = true }
+
+# THE ONLY CRATE ALLOWED TO IMPORT adk-*. Pinned exactly.
+adk-rust    = { workspace = true }

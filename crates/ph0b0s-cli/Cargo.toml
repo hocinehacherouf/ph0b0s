@@ -1,0 +1,48 @@
+[package]
+name        = "ph0b0s-cli"
+description = "ph0b0s CLI — wires the LLM adapter, detector registry, store, and reporter"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+
+[[bin]]
+name = "ph0b0s"
+path = "src/main.rs"
+
+[dependencies]
+ph0b0s-core             = { workspace = true }
+ph0b0s-storage          = { workspace = true }
+ph0b0s-report           = { workspace = true }
+ph0b0s-llm-adk          = { workspace = true }
+ph0b0s-detect-llm-toy   = { workspace = true }
+ph0b0s-detect-cargo-audit = { workspace = true }
+
+clap       = { workspace = true }
+figment    = { workspace = true }
+tokio      = { workspace = true }
+async-trait = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+chrono     = { workspace = true }
+ulid       = { workspace = true }
+tracing    = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow     = { workspace = true }
+thiserror  = { workspace = true }
+
+[features]
+default = []
+otel    = ["dep:tracing-opentelemetry"]
+
+[dependencies.tracing-opentelemetry]
+workspace = true
+optional  = true
+
+[dev-dependencies]
+ph0b0s-test-support = { workspace = true }
+assert_cmd  = { workspace = true }
+predicates  = { workspace = true }
+tempfile    = { workspace = true }

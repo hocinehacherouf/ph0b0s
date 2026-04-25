@@ -1,0 +1,60 @@
+# cargo-deny config — supply chain + license + dependency hygiene for ph0b0s.
+
+[graph]
+all-features = true
+
+[output]
+feature-depth = 1
+
+[advisories]
+db-path        = "~/.cargo/advisory-db"
+db-urls        = ["https://github.com/rustsec/advisory-db"]
+yanked         = "deny"
+ignore         = []
+
+[licenses]
+confidence-threshold = 0.93
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CC0-1.0",
+]
+
+[[licenses.exceptions]]
+# Apache 2.0 with LLVM exception is OK for the cvss crate family if encountered.
+allow = ["Apache-2.0 WITH LLVM-exception"]
+name  = "*"
+
+[bans]
+multiple-versions = "warn"
+wildcards         = "deny"
+
+# Vendor LLM crates are banned everywhere except the adapter and the CLI
+# wiring. The xtask `check-vendor` enforces this at the source level too.
+deny = [
+    { name = "anthropic"        },
+    { name = "openai"           },
+    { name = "genai"            },
+    { name = "google-genai"     },
+    { name = "aws-sdk-bedrock"  },
+    { name = "ollama-rs"        },
+]
+
+[[bans.skip]]
+# Allow these crates to depend on the LLM stack:
+name = "ph0b0s-llm-adk"
+[[bans.skip]]
+name = "ph0b0s-cli"
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+allow-git        = []

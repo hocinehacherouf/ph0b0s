@@ -1,0 +1,105 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/ph0b0s-core",
+    "crates/ph0b0s-storage",
+    "crates/ph0b0s-report",
+    "crates/ph0b0s-llm-adk",
+    "crates/ph0b0s-detect-llm-toy",
+    "crates/ph0b0s-detect-cargo-audit",
+    "crates/ph0b0s-cli",
+    "crates/ph0b0s-test-support",
+    "xtask",
+]
+default-members = [
+    "crates/ph0b0s-core",
+    "crates/ph0b0s-storage",
+    "crates/ph0b0s-report",
+    "crates/ph0b0s-llm-adk",
+    "crates/ph0b0s-detect-llm-toy",
+    "crates/ph0b0s-detect-cargo-audit",
+    "crates/ph0b0s-cli",
+    "crates/ph0b0s-test-support",
+]
+
+[workspace.package]
+version    = "0.0.1"
+edition    = "2024"
+rust-version = "1.85"
+license    = "Apache-2.0"
+repository = "https://github.com/hocinehacherouf/ph0b0s"
+authors    = ["hocine hacherouf <hocine.hacherouf@michelin.com>"]
+
+[workspace.dependencies]
+# Internal crates (path-based; version field present so cargo accepts mixed source)
+ph0b0s-core             = { path = "crates/ph0b0s-core",             version = "0.0.1" }
+ph0b0s-storage          = { path = "crates/ph0b0s-storage",          version = "0.0.1" }
+ph0b0s-report           = { path = "crates/ph0b0s-report",           version = "0.0.1" }
+ph0b0s-llm-adk          = { path = "crates/ph0b0s-llm-adk",          version = "0.0.1" }
+ph0b0s-detect-llm-toy   = { path = "crates/ph0b0s-detect-llm-toy",   version = "0.0.1" }
+ph0b0s-detect-cargo-audit = { path = "crates/ph0b0s-detect-cargo-audit", version = "0.0.1" }
+ph0b0s-test-support     = { path = "crates/ph0b0s-test-support",     version = "0.0.1" }
+
+# Async runtime + utilities
+tokio       = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs", "time", "sync", "io-util"] }
+tokio-util  = { version = "0.7", features = ["rt"] }
+async-trait = "0.1"
+futures     = "0.3"
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars   = "0.8"
+
+# Time + ids
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+ulid   = { version = "1", features = ["serde"] }
+
+# Hashing
+sha2 = "0.10"
+hex  = "0.4"
+
+# Errors
+thiserror = "2"
+anyhow    = "1"
+
+# Tracing / observability
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.32"
+
+# Storage
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "json", "chrono", "migrate"] }
+
+# CLI + config
+clap    = { version = "4", features = ["derive", "env"] }
+figment = { version = "0.10", features = ["toml", "env"] }
+
+# Reports
+serde-sarif = "0.8"
+
+# Severity
+cvss = "2"
+
+# Misc
+tempfile = "3"
+regex    = "1"
+walkdir  = "2"
+
+# LLM adapter (PIN EXACT — only used by ph0b0s-llm-adk)
+adk-rust = "=0.6.0"
+
+# Dev / test
+insta       = "1"
+assert_cmd  = "2"
+predicates  = "3"
+proptest    = "1"
+
+[profile.release]
+lto             = "thin"
+codegen-units   = 1
+opt-level       = 3
+strip           = "symbols"
+
+[profile.dev]
+debug = "line-tables-only"
