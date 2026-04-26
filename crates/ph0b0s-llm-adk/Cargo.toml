@@ -12,6 +12,7 @@ authors     = { workspace = true }
 ph0b0s-core = { workspace = true }
 async-trait = { workspace = true }
 tokio       = { workspace = true }
+futures     = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }
