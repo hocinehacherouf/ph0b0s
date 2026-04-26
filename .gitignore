@@ -26,3 +26,5 @@ ph0b0s.local.toml
 report.sarif
 report.md
 report.json
+
+graphify-out/
