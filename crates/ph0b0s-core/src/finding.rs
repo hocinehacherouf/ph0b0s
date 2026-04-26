@@ -38,8 +38,11 @@ pub enum Location {
     },
 }
 
+/// Adjacent tagging (`{"kind": "...", "value": ...}`) so newtype variants
+/// holding primitives (e.g. `Note(String)`, `Json(Value::String(...))`)
+/// serialize cleanly. Internal tagging would error at runtime for those.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Evidence {
     /// Free-form JSON blob (an upstream tool's raw record, etc.).
     Json(serde_json::Value),
@@ -127,6 +130,7 @@ impl Finding {
     /// Convenience constructor that fills `id`, `created_at`, and computes
     /// the fingerprint from `rule_id` + `location` + a canonical-evidence blob
     /// the caller produces.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         detector: impl Into<String>,
         rule_id: impl Into<String>,
