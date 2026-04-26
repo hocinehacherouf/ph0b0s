@@ -79,7 +79,7 @@ pub enum ToolSource {
     Mcp { server: String },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
     #[serde(default)]
@@ -103,16 +103,6 @@ impl ChatRequest {
     pub fn user(mut self, content: impl Into<String>) -> Self {
         self.messages.push(ChatMessage::User { content: content.into() });
         self
-    }
-}
-
-impl Default for ChatRequest {
-    fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            tools: Vec::new(),
-            hints: BTreeMap::new(),
-        }
     }
 }
 
