@@ -86,6 +86,23 @@ impl SqliteFindingStore {
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
+
+    /// Most recently started run, if any. Used by `ph0b0s report show` when
+    /// the user omits a run id. Lives on the impl (not the trait) because
+    /// it's a CLI affordance, not a core storage primitive.
+    pub async fn latest_run_id(&self) -> Result<Option<Ulid>, StoreError> {
+        let row = sqlx::query("SELECT run_id FROM runs ORDER BY started_at DESC LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| StoreError::Backend(e.to_string()))?;
+        let Some(row) = row else { return Ok(None) };
+        let s: String = row
+            .try_get("run_id")
+            .map_err(|e| StoreError::Backend(e.to_string()))?;
+        Ulid::from_string(&s)
+            .map(Some)
+            .map_err(|e| StoreError::Backend(format!("invalid stored run_id: {e}")))
+    }
 }
 
 // ---------------------------------------------------------------------------
