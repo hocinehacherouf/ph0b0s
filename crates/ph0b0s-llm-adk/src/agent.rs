@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use ph0b0s_core::error::LlmError;
 use ph0b0s_core::llm::{
-    AgentRoleKey, ChatMessage, ChatRequest, ChatResponse, FinishReason, LlmAgent,
-    LlmSession, SessionOptions, StructuredRequest, Usage, UserMessage,
+    AgentRoleKey, ChatMessage, ChatRequest, ChatResponse, FinishReason, LlmAgent, LlmSession,
+    SessionOptions, StructuredRequest, Usage, UserMessage,
 };
 
 use crate::error::map_adk_error;
@@ -47,10 +47,7 @@ impl std::fmt::Debug for AdkLlmAgent {
 }
 
 impl AdkLlmAgent {
-    pub fn new(
-        llm: Arc<dyn adk_rust::Llm>,
-        model_id: impl Into<String>,
-    ) -> Self {
+    pub fn new(llm: Arc<dyn adk_rust::Llm>, model_id: impl Into<String>) -> Self {
         Self {
             llm,
             model_id: model_id.into(),
@@ -81,7 +78,12 @@ impl LlmAgent for AdkLlmAgent {
                  model output will not be auto-dispatched"
             );
         }
-        let adk_req = build_request(&self.model_id, &req.messages, self.default_system.as_deref(), None);
+        let adk_req = build_request(
+            &self.model_id,
+            &req.messages,
+            self.default_system.as_deref(),
+            None,
+        );
         let stream = self
             .llm
             .generate_content(adk_req, false)
@@ -92,10 +94,7 @@ impl LlmAgent for AdkLlmAgent {
     }
 
     #[tracing::instrument(skip_all, fields(model = %self.model_id, role = %self.role.0, schema = %req.schema_name))]
-    async fn structured(
-        &self,
-        req: StructuredRequest,
-    ) -> Result<serde_json::Value, LlmError> {
+    async fn structured(&self, req: StructuredRequest) -> Result<serde_json::Value, LlmError> {
         let adk_req = build_request(
             &self.model_id,
             &req.messages,
@@ -112,10 +111,7 @@ impl LlmAgent for AdkLlmAgent {
         parse_json_loose(&text)
     }
 
-    async fn session(
-        &self,
-        opts: SessionOptions,
-    ) -> Result<Box<dyn LlmSession>, LlmError> {
+    async fn session(&self, opts: SessionOptions) -> Result<Box<dyn LlmSession>, LlmError> {
         Ok(Box::new(AdkSession::new(
             self.llm.clone(),
             self.model_id.clone(),
@@ -148,11 +144,7 @@ pub struct AdkSession {
 
 impl std::fmt::Debug for AdkSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let history_len = self
-            .state
-            .lock()
-            .map(|s| s.history.len())
-            .unwrap_or(0);
+        let history_len = self.state.lock().map(|s| s.history.len()).unwrap_or(0);
         f.debug_struct("AdkSession")
             .field("model_id", &self.model_id)
             .field("history_len", &history_len)
@@ -188,7 +180,11 @@ impl AdkSession {
     /// Snapshot of the conversation so far. Returns a clone; mutations to
     /// the result do not affect the session.
     pub fn history(&self) -> Vec<adk_rust::Content> {
-        self.state.lock().expect("session state poisoned").history.clone()
+        self.state
+            .lock()
+            .expect("session state poisoned")
+            .history
+            .clone()
     }
 }
 
@@ -226,7 +222,10 @@ impl LlmSession for AdkSession {
     }
 
     fn usage(&self) -> Usage {
-        self.state.lock().expect("session state poisoned").cumulative
+        self.state
+            .lock()
+            .expect("session state poisoned")
+            .cumulative
     }
 }
 
@@ -276,9 +275,7 @@ fn chat_message_to_content(m: &ChatMessage) -> adk_rust::Content {
         ChatMessage::System { content } => {
             adk_rust::Content::new("system").with_text(content.clone())
         }
-        ChatMessage::User { content } => {
-            adk_rust::Content::new("user").with_text(content.clone())
-        }
+        ChatMessage::User { content } => adk_rust::Content::new("user").with_text(content.clone()),
         ChatMessage::Assistant { content, .. } => {
             // tool_calls in our ChatMessage::Assistant are not threaded
             // through to adk in v1 (no tool-loop). Just preserve text.
@@ -327,7 +324,9 @@ fn map_finish_reason(fr: Option<adk_rust::FinishReason>) -> FinishReason {
 }
 
 fn extract_text(content: Option<&adk_rust::Content>) -> String {
-    let Some(c) = content else { return String::new() };
+    let Some(c) = content else {
+        return String::new();
+    };
     let mut out = String::new();
     for part in &c.parts {
         if let adk_rust::Part::Text { text } = part {
@@ -341,9 +340,8 @@ fn extract_text(content: Option<&adk_rust::Content>) -> String {
 /// that some providers emit even when given a `response_schema`.
 fn parse_json_loose(text: &str) -> Result<serde_json::Value, LlmError> {
     let trimmed = strip_code_fence(text.trim());
-    serde_json::from_str(trimmed).map_err(|e| {
-        LlmError::StructuredValidation(format!("JSON parse: {e}; payload: {trimmed}"))
-    })
+    serde_json::from_str(trimmed)
+        .map_err(|e| LlmError::StructuredValidation(format!("JSON parse: {e}; payload: {trimmed}")))
 }
 
 fn strip_code_fence(s: &str) -> &str {
@@ -410,8 +408,10 @@ mod tests {
 
     #[tokio::test]
     async fn structured_parses_response_as_json() {
-        let agent =
-            AdkLlmAgent::new(mock_llm_with(r#"{"issues":[{"line":1,"severity":"high","message":"x"}]}"#), "mock-1");
+        let agent = AdkLlmAgent::new(
+            mock_llm_with(r#"{"issues":[{"line":1,"severity":"high","message":"x"}]}"#),
+            "mock-1",
+        );
         let req = StructuredRequest {
             messages: vec![ChatMessage::User {
                 content: "scan".into(),
@@ -427,12 +427,11 @@ mod tests {
 
     #[tokio::test]
     async fn structured_strips_code_fence_before_parsing() {
-        let agent = AdkLlmAgent::new(
-            mock_llm_with("```json\n{\"ok\": true}\n```"),
-            "mock-1",
-        );
+        let agent = AdkLlmAgent::new(mock_llm_with("```json\n{\"ok\": true}\n```"), "mock-1");
         let req = StructuredRequest {
-            messages: vec![ChatMessage::User { content: "go".into() }],
+            messages: vec![ChatMessage::User {
+                content: "go".into(),
+            }],
             schema: serde_json::json!({}),
             schema_name: "X".into(),
             tools: Vec::new(),
@@ -446,7 +445,9 @@ mod tests {
     async fn structured_returns_validation_error_on_garbage() {
         let agent = AdkLlmAgent::new(mock_llm_with("not json at all"), "mock-1");
         let req = StructuredRequest {
-            messages: vec![ChatMessage::User { content: "go".into() }],
+            messages: vec![ChatMessage::User {
+                content: "go".into(),
+            }],
             schema: serde_json::json!({}),
             schema_name: "X".into(),
             tools: Vec::new(),
@@ -480,9 +481,7 @@ mod tests {
         // twice, we'd need to verify accumulation — easier with a slightly
         // smarter mock. So here we assert only that one turn appends history
         // and propagates usage; cumulative-add is tested in `accumulate_*`.
-        let llm: Arc<dyn adk_rust::Llm> = Arc::new(
-            MockLlm::new("mock-sess").with_response(resp_a),
-        );
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(MockLlm::new("mock-sess").with_response(resp_a));
         let mut sess = AdkSession::new(llm, "mock-sess", Some("be helpful".into()));
         let r = sess.send(UserMessage::new("hello")).await.unwrap();
         assert_eq!(r.content, "first");
@@ -498,19 +497,14 @@ mod tests {
 
     #[tokio::test]
     async fn session_send_with_empty_provider_response_errors() {
-        let mut sess =
-            AdkSession::new(mock_llm_empty(), "mock-empty", None);
-        let err = sess
-            .send(UserMessage::new("ping"))
-            .await
-            .unwrap_err();
+        let mut sess = AdkSession::new(mock_llm_empty(), "mock-empty", None);
+        let err = sess.send(UserMessage::new("ping")).await.unwrap_err();
         matches!(err, LlmError::Provider(_));
     }
 
     #[tokio::test]
     async fn session_factory_via_agent_uses_default_system_when_none_provided() {
-        let agent = AdkLlmAgent::new(mock_llm_empty(), "mock")
-            .with_system_prompt("you are X");
+        let agent = AdkLlmAgent::new(mock_llm_empty(), "mock").with_system_prompt("you are X");
         let sess = agent.session(SessionOptions::default()).await.unwrap();
         // no public introspection on Box<dyn LlmSession>, but no panic
         // and system prompt is included via AdkSession::new.
@@ -519,11 +513,26 @@ mod tests {
 
     #[test]
     fn map_finish_reason_covers_all_known_variants() {
-        assert_eq!(map_finish_reason(Some(adk_rust::FinishReason::Stop)), FinishReason::Stop);
-        assert_eq!(map_finish_reason(Some(adk_rust::FinishReason::MaxTokens)), FinishReason::Length);
-        assert_eq!(map_finish_reason(Some(adk_rust::FinishReason::Safety)), FinishReason::ContentFilter);
-        assert_eq!(map_finish_reason(Some(adk_rust::FinishReason::Recitation)), FinishReason::ContentFilter);
-        assert_eq!(map_finish_reason(Some(adk_rust::FinishReason::Other)), FinishReason::Other);
+        assert_eq!(
+            map_finish_reason(Some(adk_rust::FinishReason::Stop)),
+            FinishReason::Stop
+        );
+        assert_eq!(
+            map_finish_reason(Some(adk_rust::FinishReason::MaxTokens)),
+            FinishReason::Length
+        );
+        assert_eq!(
+            map_finish_reason(Some(adk_rust::FinishReason::Safety)),
+            FinishReason::ContentFilter
+        );
+        assert_eq!(
+            map_finish_reason(Some(adk_rust::FinishReason::Recitation)),
+            FinishReason::ContentFilter
+        );
+        assert_eq!(
+            map_finish_reason(Some(adk_rust::FinishReason::Other)),
+            FinishReason::Other
+        );
         assert_eq!(map_finish_reason(None), FinishReason::Other);
     }
 
@@ -536,9 +545,14 @@ mod tests {
 
     #[test]
     fn build_request_injects_default_system_when_no_explicit_one() {
-        let req = build_request("m", &[
-            ChatMessage::User { content: "hi".into() },
-        ], Some("be brief"), None);
+        let req = build_request(
+            "m",
+            &[ChatMessage::User {
+                content: "hi".into(),
+            }],
+            Some("be brief"),
+            None,
+        );
         assert_eq!(req.contents.len(), 2); // system + user
         assert_eq!(req.contents[0].role, "system");
         assert_eq!(req.contents[1].role, "user");
@@ -546,10 +560,19 @@ mod tests {
 
     #[test]
     fn build_request_does_not_double_system_when_explicit() {
-        let req = build_request("m", &[
-            ChatMessage::System { content: "real one".into() },
-            ChatMessage::User { content: "hi".into() },
-        ], Some("default would be ignored"), None);
+        let req = build_request(
+            "m",
+            &[
+                ChatMessage::System {
+                    content: "real one".into(),
+                },
+                ChatMessage::User {
+                    content: "hi".into(),
+                },
+            ],
+            Some("default would be ignored"),
+            None,
+        );
         // explicit system + user, no default injection
         assert_eq!(req.contents.len(), 2);
         assert_eq!(req.contents[0].role, "system");
@@ -559,7 +582,9 @@ mod tests {
     fn build_request_with_schema_sets_response_schema_in_config() {
         let req = build_request(
             "m",
-            &[ChatMessage::User { content: "hi".into() }],
+            &[ChatMessage::User {
+                content: "hi".into(),
+            }],
             None,
             Some(serde_json::json!({"type":"object"})),
         );
@@ -588,8 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn agent_role_and_model_id_are_returned() {
-        let a = AdkLlmAgent::new(mock_llm_empty(), "the-model")
-            .with_role("triager");
+        let a = AdkLlmAgent::new(mock_llm_empty(), "the-model").with_role("triager");
         assert_eq!(a.model_id(), "the-model");
         assert_eq!(a.role().0, "triager");
     }

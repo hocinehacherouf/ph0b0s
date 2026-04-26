@@ -57,11 +57,7 @@ pub struct ScanOutcome {
 
 /// Run a full scan. Wires the adapter, builds the request, runs the detector
 /// pipeline, persists findings, writes reports.
-pub async fn run(
-    args: ScanArgs,
-    config: Config,
-    agent: AdkLlmAgent,
-) -> Result<ScanOutcome> {
+pub async fn run(args: ScanArgs, config: Config, agent: AdkLlmAgent) -> Result<ScanOutcome> {
     // Tools host. v1: only Rust-native tools registered by detection packs;
     // MCP servers are recorded but not connected (adapter limitation).
     let tools = AdkToolHost::new();
@@ -257,16 +253,8 @@ impl ScanStatsExt for ScanStats {
     }
 }
 
-async fn write_reports(
-    args: &ScanArgs,
-    config: &Config,
-    result: &ScanResult,
-) -> Result<()> {
-    if let Some(path) = args
-        .output
-        .as_ref()
-        .or(config.output.sarif_path.as_ref())
-    {
+async fn write_reports(args: &ScanArgs, config: &Config, result: &ScanResult) -> Result<()> {
+    if let Some(path) = args.output.as_ref().or(config.output.sarif_path.as_ref()) {
         write_with(SarifReporter, path, result).await?;
     }
     if let Some(path) = args
@@ -282,11 +270,7 @@ async fn write_reports(
     Ok(())
 }
 
-async fn write_with<R: Reporter>(
-    reporter: R,
-    path: &PathBuf,
-    result: &ScanResult,
-) -> Result<()> {
+async fn write_with<R: Reporter>(reporter: R, path: &PathBuf, result: &ScanResult) -> Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             let _ = tokio::fs::create_dir_all(parent).await;

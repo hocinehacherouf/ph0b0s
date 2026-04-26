@@ -66,11 +66,19 @@ impl AdkToolHost {
     }
 
     pub fn invocations(&self) -> Vec<(String, serde_json::Value)> {
-        self.state.invocations.lock().expect("invocations poisoned").clone()
+        self.state
+            .invocations
+            .lock()
+            .expect("invocations poisoned")
+            .clone()
     }
 
     pub fn mounted_mcp(&self) -> Vec<McpServerSpec> {
-        self.state.mounted_mcp.lock().expect("mounted_mcp poisoned").clone()
+        self.state
+            .mounted_mcp
+            .lock()
+            .expect("mounted_mcp poisoned")
+            .clone()
     }
 }
 
@@ -172,10 +180,7 @@ mod tests {
                 source: ToolSource::Native,
             }
         }
-        async fn call(
-            &self,
-            _args: serde_json::Value,
-        ) -> Result<serde_json::Value, ToolError> {
+        async fn call(&self, _args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
             Ok(self.response.clone())
         }
     }
@@ -191,10 +196,7 @@ mod tests {
     async fn register_native_then_invoke_dispatches_to_tool() {
         let host = AdkToolHost::new();
         host.register_native(echo("hello", serde_json::json!({"hi":"there"})));
-        let r = host
-            .invoke("hello", serde_json::json!({}))
-            .await
-            .unwrap();
+        let r = host.invoke("hello", serde_json::json!({})).await.unwrap();
         assert_eq!(r, serde_json::json!({"hi":"there"}));
     }
 

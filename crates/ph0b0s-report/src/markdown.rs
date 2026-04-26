@@ -52,7 +52,13 @@ impl MarkdownReporter {
 
         let counts = severity_counts(&result.findings);
         let total = result.findings.len();
-        writeln!(out, "- **Findings:** {} ({})", total, counts_summary(&counts)).ok();
+        writeln!(
+            out,
+            "- **Findings:** {} ({})",
+            total,
+            counts_summary(&counts)
+        )
+        .ok();
         if !result.errors.is_empty() {
             writeln!(out, "- **Detector errors:** {}", result.errors.len()).ok();
         }
@@ -62,14 +68,14 @@ impl MarkdownReporter {
         writeln!(out).ok();
         writeln!(out, "| Severity | Count |").ok();
         writeln!(out, "|---|---|").ok();
-        for level in [Level::Critical, Level::High, Level::Medium, Level::Low, Level::None] {
-            writeln!(
-                out,
-                "| {} | {} |",
-                level_label(level),
-                counts.get(level)
-            )
-            .ok();
+        for level in [
+            Level::Critical,
+            Level::High,
+            Level::Medium,
+            Level::Low,
+            Level::None,
+        ] {
+            writeln!(out, "| {} | {} |", level_label(level), counts.get(level)).ok();
         }
         writeln!(out).ok();
 
@@ -114,12 +120,7 @@ fn render_finding(out: &mut String, f: &Finding) {
     writeln!(out, "- **Location:** {}", format_location(&f.location)).ok();
     writeln!(out, "- **Fingerprint:** `{}`", f.fingerprint.0).ok();
     if !f.suppressions.is_empty() {
-        writeln!(
-            out,
-            "- **Suppressions:** {} hint(s)",
-            f.suppressions.len()
-        )
-        .ok();
+        writeln!(out, "- **Suppressions:** {} hint(s)", f.suppressions.len()).ok();
     }
     writeln!(out).ok();
     writeln!(out, "{}", f.message.trim_end()).ok();

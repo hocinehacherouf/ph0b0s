@@ -17,20 +17,16 @@ pub mod target;
 pub mod tools;
 
 pub use detector::{Detector, DetectorCtx, DetectorKind, DetectorMetadata};
-pub use error::{
-    CoreError, DetectorError, LlmError, ReportError, StoreError, ToolError,
-};
+pub use error::{CoreError, DetectorError, LlmError, ReportError, StoreError, ToolError};
 pub use finding::{
     Confidence, Evidence, Finding, Fingerprint, Location, SanitizationState, SuppressionHint,
 };
 pub use llm::{
-    AgentRoleKey, ChatMessage, ChatRequest, ChatResponse, LlmAgent, LlmSession,
-    SessionOptions, StructuredRequest, ToolCall, ToolResult, ToolSpec, Usage, UserMessage,
+    AgentRoleKey, ChatMessage, ChatRequest, ChatResponse, LlmAgent, LlmSession, SessionOptions,
+    StructuredRequest, ToolCall, ToolResult, ToolSpec, Usage, UserMessage,
 };
 pub use report::Reporter;
-pub use scan::{
-    DetectorFilter, ScanCtx, ScanOptions, ScanRequest, ScanResult, ScanStats,
-};
+pub use scan::{DetectorFilter, ScanCtx, ScanOptions, ScanRequest, ScanResult, ScanStats};
 pub use severity::{Level, Severity};
 pub use store::FindingStore;
 pub use target::{Target, TargetMaterializer, Workspace, WorkspaceGuard};

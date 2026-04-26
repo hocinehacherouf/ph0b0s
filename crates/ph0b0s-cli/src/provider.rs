@@ -48,9 +48,7 @@ fn build_mock() -> Result<AdkLlmAgent> {
             .with_context(|| format!("parsing PH0B0S_MOCK_RESPONSES={path}"))?;
         let arr = parsed
             .as_array()
-            .ok_or_else(|| anyhow::anyhow!(
-                "PH0B0S_MOCK_RESPONSES must be a JSON array"
-            ))?;
+            .ok_or_else(|| anyhow::anyhow!("PH0B0S_MOCK_RESPONSES must be a JSON array"))?;
         for item in arr {
             let text = match item {
                 serde_json::Value::String(s) => s.clone(),

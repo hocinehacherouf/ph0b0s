@@ -19,8 +19,8 @@ pub mod mock_llm;
 pub mod mock_tools;
 
 pub use fixtures::{
-    deterministic_run_id, fixed_timestamp, sample_finding, sample_scan_result,
-    temp_workspace, temp_workspace_with,
+    deterministic_run_id, fixed_timestamp, sample_finding, sample_scan_result, temp_workspace,
+    temp_workspace_with,
 };
 pub use mock_llm::{MockLlmAgent, MockLlmSession};
 pub use mock_tools::{CannedTool, MockToolHost};

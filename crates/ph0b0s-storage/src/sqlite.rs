@@ -13,17 +13,13 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use ph0b0s_core::error::StoreError;
 use ph0b0s_core::finding::{
-    Confidence, Evidence, Finding, Fingerprint, Location, SanitizationState,
-    SuppressionHint,
+    Confidence, Evidence, Finding, Fingerprint, Location, SanitizationState, SuppressionHint,
 };
-use ph0b0s_core::scan::{
-    DetectorRunError, ScanRequest, ScanResult, ScanStats,
-};
+use ph0b0s_core::scan::{DetectorRunError, ScanRequest, ScanResult, ScanStats};
 use ph0b0s_core::severity::Severity;
 use ph0b0s_core::store::FindingStore;
 use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions,
-    SqliteSynchronous,
+    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
 use sqlx::{ConnectOptions, Row};
 use ulid::Ulid;
@@ -140,8 +136,7 @@ fn severity_level_str(s: &Severity) -> &'static str {
 }
 
 fn parse_ulid(s: &str) -> Result<Ulid, StoreError> {
-    Ulid::from_string(s)
-        .map_err(|e| StoreError::Backend(format!("invalid ULID {s:?}: {e}")))
+    Ulid::from_string(s).map_err(|e| StoreError::Backend(format!("invalid ULID {s:?}: {e}")))
 }
 
 fn parse_rfc3339(s: &str) -> Result<DateTime<Utc>, StoreError> {
@@ -238,11 +233,7 @@ impl FindingStore for SqliteFindingStore {
     }
 
     #[tracing::instrument(skip(self, stats), fields(run_id = %run_id))]
-    async fn finish_run(
-        &self,
-        run_id: Ulid,
-        stats: &ScanStats,
-    ) -> Result<(), StoreError> {
+    async fn finish_run(&self, run_id: Ulid, stats: &ScanStats) -> Result<(), StoreError> {
         let now = Utc::now().to_rfc3339();
         let stats_json = serde_json::to_string(stats)?;
         let result = sqlx::query(
@@ -364,12 +355,8 @@ impl FindingStore for SqliteFindingStore {
                 message,
                 location: serde_json::from_str::<Location>(&location_s)?,
                 evidence: serde_json::from_str::<Vec<Evidence>>(&evidence_s)?,
-                sanitization: serde_json::from_str::<SanitizationState>(
-                    &sanitization_s,
-                )?,
-                suppressions: serde_json::from_str::<Vec<SuppressionHint>>(
-                    &suppressions_s,
-                )?,
+                sanitization: serde_json::from_str::<SanitizationState>(&sanitization_s)?,
+                suppressions: serde_json::from_str::<Vec<SuppressionHint>>(&suppressions_s)?,
                 created_at: parse_rfc3339(&created_at_s)?,
             });
         }
@@ -434,11 +421,7 @@ impl FindingStore for SqliteFindingStore {
     }
 
     #[tracing::instrument(skip(self, reason), fields(fingerprint = %fingerprint.0))]
-    async fn suppress(
-        &self,
-        fingerprint: &Fingerprint,
-        reason: &str,
-    ) -> Result<(), StoreError> {
+    async fn suppress(&self, fingerprint: &Fingerprint, reason: &str) -> Result<(), StoreError> {
         let now = Utc::now().to_rfc3339();
         sqlx::query(
             "INSERT INTO suppressions (fingerprint, reason, created_at) \
@@ -463,14 +446,11 @@ impl FindingStore for SqliteFindingStore {
 mod tests {
     use super::*;
     use ph0b0s_core::finding::{Confidence, Location};
-    use ph0b0s_core::scan::{
-        DetectorFilter, ScanOptions, ScanRequest, ScanStats,
-    };
+    use ph0b0s_core::scan::{DetectorFilter, ScanOptions, ScanRequest, ScanStats};
     use ph0b0s_core::severity::{Level, Severity};
     use ph0b0s_core::target::Target;
     use ph0b0s_test_support::{
-        deterministic_run_id, fixed_timestamp, sample_finding,
-        sample_scan_result,
+        deterministic_run_id, fixed_timestamp, sample_finding, sample_scan_result,
     };
     use std::path::PathBuf;
 
@@ -537,14 +517,13 @@ mod tests {
         let f = sample_finding();
         store.record(run_id, &f).await.unwrap();
 
-        let count: i64 =
-            sqlx::query("SELECT COUNT(*) AS c FROM findings WHERE run_id = ?")
-                .bind(run_id.to_string())
-                .fetch_one(store.pool())
-                .await
-                .unwrap()
-                .try_get("c")
-                .unwrap();
+        let count: i64 = sqlx::query("SELECT COUNT(*) AS c FROM findings WHERE run_id = ?")
+            .bind(run_id.to_string())
+            .fetch_one(store.pool())
+            .await
+            .unwrap()
+            .try_get("c")
+            .unwrap();
         assert_eq!(count, 1);
     }
 
@@ -694,25 +673,20 @@ mod tests {
         let row_for = |id: Ulid| {
             let pool = store.pool().clone();
             async move {
-                sqlx::query(
-                    "SELECT superseded_by FROM findings WHERE id = ?",
-                )
-                .bind(id.to_string())
-                .fetch_one(&pool)
-                .await
-                .unwrap()
+                sqlx::query("SELECT superseded_by FROM findings WHERE id = ?")
+                    .bind(id.to_string())
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap()
             }
         };
-        let high_super: Option<String> =
-            row_for(high.id).await.try_get("superseded_by").unwrap();
+        let high_super: Option<String> = row_for(high.id).await.try_get("superseded_by").unwrap();
         assert!(high_super.is_none());
 
-        let med_super: Option<String> =
-            row_for(med.id).await.try_get("superseded_by").unwrap();
+        let med_super: Option<String> = row_for(med.id).await.try_get("superseded_by").unwrap();
         assert_eq!(med_super.as_deref(), Some(high.id.to_string().as_str()));
 
-        let low_super: Option<String> =
-            row_for(low.id).await.try_get("superseded_by").unwrap();
+        let low_super: Option<String> = row_for(low.id).await.try_get("superseded_by").unwrap();
         assert_eq!(low_super.as_deref(), Some(high.id.to_string().as_str()));
     }
 
@@ -753,14 +727,13 @@ mod tests {
         let store = fresh_store().await;
         let fp = Fingerprint("abc123".into());
         store.suppress(&fp, "vendored fork").await.unwrap();
-        let reason: String =
-            sqlx::query("SELECT reason FROM suppressions WHERE fingerprint = ?")
-                .bind(&fp.0)
-                .fetch_one(store.pool())
-                .await
-                .unwrap()
-                .try_get("reason")
-                .unwrap();
+        let reason: String = sqlx::query("SELECT reason FROM suppressions WHERE fingerprint = ?")
+            .bind(&fp.0)
+            .fetch_one(store.pool())
+            .await
+            .unwrap()
+            .try_get("reason")
+            .unwrap();
         assert_eq!(reason, "vendored fork");
     }
 
@@ -770,14 +743,13 @@ mod tests {
         let fp = Fingerprint("abc123".into());
         store.suppress(&fp, "first").await.unwrap();
         store.suppress(&fp, "second").await.unwrap();
-        let reason: String =
-            sqlx::query("SELECT reason FROM suppressions WHERE fingerprint = ?")
-                .bind(&fp.0)
-                .fetch_one(store.pool())
-                .await
-                .unwrap()
-                .try_get("reason")
-                .unwrap();
+        let reason: String = sqlx::query("SELECT reason FROM suppressions WHERE fingerprint = ?")
+            .bind(&fp.0)
+            .fetch_one(store.pool())
+            .await
+            .unwrap()
+            .try_get("reason")
+            .unwrap();
         assert_eq!(reason, "second");
 
         let count: i64 =
@@ -810,8 +782,7 @@ mod tests {
         let loaded = store.load_run(run_id).await.unwrap();
         assert_eq!(loaded.findings.len(), 3);
         let loaded_ids: Vec<_> = loaded.findings.iter().map(|f| f.id).collect();
-        let expected_ids: Vec<_> =
-            result.findings.iter().map(|f| f.id).collect();
+        let expected_ids: Vec<_> = result.findings.iter().map(|f| f.id).collect();
         assert_eq!(loaded_ids, expected_ids);
     }
 

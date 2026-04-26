@@ -166,17 +166,10 @@ impl LlmAgent for MockLlmAgent {
             .lock()
             .expect("chat_responses mutex poisoned")
             .pop_front()
-            .unwrap_or_else(|| {
-                Err(LlmError::Other(
-                    "MockLlmAgent: chat queue exhausted".into(),
-                ))
-            })
+            .unwrap_or_else(|| Err(LlmError::Other("MockLlmAgent: chat queue exhausted".into())))
     }
 
-    async fn structured(
-        &self,
-        req: StructuredRequest,
-    ) -> Result<serde_json::Value, LlmError> {
+    async fn structured(&self, req: StructuredRequest) -> Result<serde_json::Value, LlmError> {
         self.state
             .recorded_structured
             .lock()
@@ -194,10 +187,7 @@ impl LlmAgent for MockLlmAgent {
             })
     }
 
-    async fn session(
-        &self,
-        opts: SessionOptions,
-    ) -> Result<Box<dyn LlmSession>, LlmError> {
+    async fn session(&self, opts: SessionOptions) -> Result<Box<dyn LlmSession>, LlmError> {
         self.state
             .recorded_session_opts
             .lock()
@@ -373,7 +363,9 @@ mod tests {
         agent.enqueue_structured_ok(serde_json::json!({"issues": []}));
 
         let req = StructuredRequest {
-            messages: vec![ChatMessage::User { content: "scan this".into() }],
+            messages: vec![ChatMessage::User {
+                content: "scan this".into(),
+            }],
             schema: serde_json::json!({"type": "object"}),
             schema_name: "Issues".into(),
             tools: Vec::new(),
@@ -404,7 +396,9 @@ mod tests {
         let agent = MockLlmAgent::new();
         let inspector = agent.clone();
 
-        agent.enqueue_chat_text("from clone").enqueue_chat_text("again");
+        agent
+            .enqueue_chat_text("from clone")
+            .enqueue_chat_text("again");
         let _ = inspector.chat(ChatRequest::new()).await.unwrap();
         let _ = agent.chat(ChatRequest::new()).await.unwrap();
 
@@ -464,10 +458,7 @@ mod tests {
         let agent = MockLlmAgent::new();
         agent.set_session_template(template);
 
-        let mut sess = agent
-            .session(SessionOptions::default())
-            .await
-            .unwrap();
+        let mut sess = agent.session(SessionOptions::default()).await.unwrap();
         let resp = sess.send(UserMessage::new("hello")).await.unwrap();
         assert_eq!(resp.content, "from template");
 

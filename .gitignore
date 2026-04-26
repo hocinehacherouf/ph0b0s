@@ -27,6 +27,10 @@ report.sarif
 report.md
 report.json
 
+# cargo-llvm-cov artifacts
+lcov.info
+codecov.json
+
 graphify-out/
 
 # Claude Code local settings

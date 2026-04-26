@@ -47,7 +47,10 @@ pub enum Evidence {
     /// Free-form JSON blob (an upstream tool's raw record, etc.).
     Json(serde_json::Value),
     /// A short captured code snippet.
-    Snippet { language: Option<String>, text: String },
+    Snippet {
+        language: Option<String>,
+        text: String,
+    },
     /// A reference to an artifact stored on disk relative to the workspace.
     Artifact { path: String, mime: Option<String> },
     /// A short text note from the detector.
@@ -77,11 +80,7 @@ impl Fingerprint {
     /// Compute a fingerprint over the rule, the normalised location, and a
     /// canonical evidence subset. Detectors should use this so equivalent
     /// findings on subsequent runs collapse cleanly.
-    pub fn compute(
-        rule_id: &str,
-        location: &Location,
-        canonical_evidence: &[u8],
-    ) -> Self {
+    pub fn compute(rule_id: &str, location: &Location, canonical_evidence: &[u8]) -> Self {
         let mut h = Sha256::new();
         h.update(rule_id.as_bytes());
         h.update(b"\x1f");
@@ -95,13 +94,22 @@ impl Fingerprint {
 
 fn canonical_location(loc: &Location) -> String {
     match loc {
-        Location::File { path, start_line, end_line, .. } => {
+        Location::File {
+            path,
+            start_line,
+            end_line,
+            ..
+        } => {
             // Normalize separators to `/` so the same location on Windows and
             // Unix produces the same fingerprint.
             let p = path.replace('\\', "/");
             format!("file:{}#{}-{}", p, start_line, end_line)
         }
-        Location::Symbolic { package, version, ecosystem } => {
+        Location::Symbolic {
+            package,
+            version,
+            ecosystem,
+        } => {
             format!("pkg:{ecosystem}:{package}@{version}")
         }
     }
@@ -273,6 +281,32 @@ mod tests {
             Fingerprint::compute("r", &l1, b""),
             Fingerprint::compute("r", &l2, b"")
         );
+    }
+
+    #[test]
+    fn with_evidence_appends_to_evidence_vec() {
+        let f = Finding::new(
+            "d",
+            "r",
+            "t",
+            "m",
+            Location::Symbolic {
+                package: "p".into(),
+                version: "1.0".into(),
+                ecosystem: "crates.io".into(),
+            },
+            Severity::Qualitative(Level::Low),
+            Confidence::Low,
+            b"",
+        );
+        let f = f
+            .with_evidence(Evidence::Note("first".into()))
+            .with_evidence(Evidence::Note("second".into()));
+        assert_eq!(f.evidence.len(), 2);
+        match &f.evidence[1] {
+            Evidence::Note(s) => assert_eq!(s, "second"),
+            other => panic!("expected Note, got {other:?}"),
+        }
     }
 
     #[test]

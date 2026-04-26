@@ -122,10 +122,7 @@ impl Config {
     }
 
     /// Test-friendly variant: explicit user + project paths.
-    pub fn load_from(
-        user: Option<&Path>,
-        project: Option<&Path>,
-    ) -> Result<Self, ConfigError> {
+    pub fn load_from(user: Option<&Path>, project: Option<&Path>) -> Result<Self, ConfigError> {
         let mut fig = Figment::from(Serialized::defaults(Config::default()));
         if let Some(p) = user {
             if p.exists() {
@@ -200,8 +197,9 @@ fn check_no_api_key(path: &Path) -> Result<(), ConfigError> {
             let after = trimmed
                 .get(idx + needle.len()..)
                 .and_then(|s| s.chars().next());
-            let is_key_start =
-                prev.map(|c| !c.is_alphanumeric() && c != '_').unwrap_or(true);
+            let is_key_start = prev
+                .map(|c| !c.is_alphanumeric() && c != '_')
+                .unwrap_or(true);
             let is_assignment = matches!(after, Some('=') | Some(' ') | Some('\t'));
             if is_key_start && is_assignment {
                 return Err(ConfigError::ApiKeyInToml);
@@ -272,8 +270,7 @@ strict = true
 api_key = "sk-..."
 "#,
         );
-        let err = Config::load_from(None, Some(&td.path().join("ph0b0s.toml")))
-            .unwrap_err();
+        let err = Config::load_from(None, Some(&td.path().join("ph0b0s.toml"))).unwrap_err();
         assert!(matches!(err, ConfigError::ApiKeyInToml));
     }
 
@@ -286,8 +283,7 @@ api_key = "sk-..."
 default_model = "claude-sonnet-4-6"
 "#,
         );
-        let cfg =
-            Config::load_from(None, Some(&td.path().join("ph0b0s.toml"))).unwrap();
+        let cfg = Config::load_from(None, Some(&td.path().join("ph0b0s.toml"))).unwrap();
         assert_eq!(
             cfg.providers["anthropic"].default_model,
             Some("claude-sonnet-4-6".into())

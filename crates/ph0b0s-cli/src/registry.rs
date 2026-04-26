@@ -45,11 +45,7 @@ impl DetectorRegistry {
     ///
     /// `filter`: explicit `--detector` ids from the CLI, or empty for "all enabled".
     /// `config`: per-detector params plus `enabled` flag in `[detectors.<id>]`.
-    pub fn resolve(
-        &self,
-        filter: &[String],
-        config: &Config,
-    ) -> Vec<ResolvedDetector> {
+    pub fn resolve(&self, filter: &[String], config: &Config) -> Vec<ResolvedDetector> {
         let mut out = Vec::new();
         for f in &self.factories {
             if !filter.is_empty() && !filter.iter().any(|x| x == f.id) {
@@ -63,8 +59,7 @@ impl DetectorRegistry {
                 .get(f.id)
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
-            let explicit_request =
-                !filter.is_empty() && filter.iter().any(|x| x == f.id);
+            let explicit_request = !filter.is_empty() && filter.iter().any(|x| x == f.id);
             if !explicit_request && is_disabled(&params) {
                 continue;
             }

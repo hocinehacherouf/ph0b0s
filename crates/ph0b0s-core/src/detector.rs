@@ -72,3 +72,39 @@ pub trait Detector: Send + Sync {
         cancel: CancellationToken,
     ) -> Result<Vec<Finding>, DetectorError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Trivial detector implementation that exercises the trait's default
+    /// `config_schema` body.
+    struct NopDetector;
+
+    #[async_trait]
+    impl Detector for NopDetector {
+        fn metadata(&self) -> DetectorMetadata {
+            DetectorMetadata {
+                id: "nop".into(),
+                version: "0.0.1".into(),
+                kind: DetectorKind::Native,
+                description: "test".into(),
+                capabilities: vec![],
+            }
+        }
+        async fn run(
+            &self,
+            _ctx: &DetectorCtx<'_>,
+            _cancel: CancellationToken,
+        ) -> Result<Vec<Finding>, DetectorError> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn default_config_schema_is_open_object() {
+        let s = NopDetector.config_schema();
+        assert_eq!(s["type"], "object");
+        assert_eq!(s["additionalProperties"], true);
+    }
+}

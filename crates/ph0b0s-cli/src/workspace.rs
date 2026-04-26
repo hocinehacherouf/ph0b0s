@@ -42,12 +42,9 @@ pub async fn prepare(target: &Target) -> Result<Workspace, CoreError> {
     }
 }
 
-async fn clone_at_rev(
-    src: &std::path::Path,
-    rev: &str,
-) -> Result<Workspace, CoreError> {
-    let td = tempfile::TempDir::new()
-        .map_err(|e| CoreError::WorkspacePrep(format!("tempdir: {e}")))?;
+async fn clone_at_rev(src: &std::path::Path, rev: &str) -> Result<Workspace, CoreError> {
+    let td =
+        tempfile::TempDir::new().map_err(|e| CoreError::WorkspacePrep(format!("tempdir: {e}")))?;
     let dest = td.path();
     let status = tokio::process::Command::new("git")
         .args(["clone", "--depth", "1", "--branch", rev])

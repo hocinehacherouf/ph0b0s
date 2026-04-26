@@ -55,8 +55,7 @@ const RESPONSE_SCHEMA: &str = r#"{
   "required": ["issues"]
 }"#;
 
-const DEFAULT_EXTENSIONS: &[&str] =
-    &[".rs", ".py", ".js", ".ts", ".go", ".java", ".rb"];
+const DEFAULT_EXTENSIONS: &[&str] = &[".rs", ".py", ".js", ".ts", ".go", ".java", ".rb"];
 const DEFAULT_MAX_FILES: usize = 10;
 const DEFAULT_MAX_BYTES_PER_FILE: usize = 65_536;
 const DEFAULT_MAX_FINDINGS_PER_FILE: usize = 20;
@@ -222,9 +221,8 @@ fn parse_params(raw: &serde_json::Value) -> Result<Params, DetectorError> {
         #[serde(default)]
         max_findings_per_file: Option<usize>,
     }
-    let r: ParamsRaw = serde_json::from_value(raw.clone()).map_err(|e| {
-        DetectorError::InvalidParams(format!("llm-toy params: {e}"))
-    })?;
+    let r: ParamsRaw = serde_json::from_value(raw.clone())
+        .map_err(|e| DetectorError::InvalidParams(format!("llm-toy params: {e}")))?;
     let mut p = Params::default();
     if let Some(v) = r.max_files {
         if v == 0 {
@@ -299,10 +297,7 @@ fn collect_files(root: &std::path::Path, params: &Params) -> Vec<PathBuf> {
     all
 }
 
-async fn read_truncated(
-    path: &std::path::Path,
-    max_bytes: usize,
-) -> std::io::Result<String> {
+async fn read_truncated(path: &std::path::Path, max_bytes: usize) -> std::io::Result<String> {
     let file = tokio::fs::File::open(path).await?;
     let mut buf = Vec::with_capacity(max_bytes.min(8192));
     file.take(max_bytes as u64).read_to_end(&mut buf).await?;
@@ -322,9 +317,7 @@ fn build_request(rel_path: &str, body: &str) -> StructuredRequest {
             ChatMessage::System {
                 content: SYSTEM_PROMPT.to_owned(),
             },
-            ChatMessage::User {
-                content: user_text,
-            },
+            ChatMessage::User { content: user_text },
         ],
         schema,
         schema_name: SCHEMA_NAME.to_owned(),
@@ -414,8 +407,7 @@ mod tests {
     use ph0b0s_core::error::LlmError;
     use ph0b0s_core::target::Target;
     use ph0b0s_test_support::{
-        deterministic_run_id, temp_workspace, temp_workspace_with, MockLlmAgent,
-        MockToolHost,
+        MockLlmAgent, MockToolHost, deterministic_run_id, temp_workspace, temp_workspace_with,
     };
     use std::time::Duration;
 
@@ -469,7 +461,12 @@ mod tests {
     fn config_schema_documents_known_fields() {
         let s = LlmToyDetector.config_schema();
         let props = &s["properties"];
-        for k in ["max_files", "extensions", "max_bytes_per_file", "max_findings_per_file"] {
+        for k in [
+            "max_files",
+            "extensions",
+            "max_bytes_per_file",
+            "max_findings_per_file",
+        ] {
             assert!(props[k].is_object(), "missing schema field {k}");
         }
         assert_eq!(s["additionalProperties"], serde_json::Value::Bool(false));
@@ -518,8 +515,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_with_no_matching_files_returns_empty_and_does_not_call_agent() {
-        let ws = temp_workspace_with(&[("README.md", "hi"), ("notes.txt", "x")])
-            .expect("ws");
+        let ws = temp_workspace_with(&[("README.md", "hi"), ("notes.txt", "x")]).expect("ws");
         let agent = MockLlmAgent::new();
         let tools = MockToolHost::new();
         let params = serde_json::Value::Null;
@@ -587,13 +583,8 @@ mod tests {
 
     #[tokio::test]
     async fn run_caps_at_max_files() {
-        let ws = temp_workspace_with(&[
-            ("a.rs", ""),
-            ("b.rs", ""),
-            ("c.rs", ""),
-            ("d.rs", ""),
-        ])
-        .expect("ws");
+        let ws = temp_workspace_with(&[("a.rs", ""), ("b.rs", ""), ("c.rs", ""), ("d.rs", "")])
+            .expect("ws");
         let agent = MockLlmAgent::new();
         for _ in 0..2 {
             agent.enqueue_structured_ok(issues_response(&[]));
@@ -676,8 +667,7 @@ mod tests {
         // are at most max_bytes_per_file.
         // Wrapping is `File: <path>\n\n```\n<body>\n````, so check the body
         // length is <= max_bytes_per_file.
-        let body_in_msg: String =
-            user.chars().filter(|c| *c == 'x').collect();
+        let body_in_msg: String = user.chars().filter(|c| *c == 'x').collect();
         assert!(
             body_in_msg.len() <= 500,
             "expected truncated body <=500, got {}",
@@ -687,9 +677,11 @@ mod tests {
 
     #[tokio::test]
     async fn run_returns_findings_from_canned_agent_output() {
-        let ws = temp_workspace_with(&[("a.rs",
-            "fn main() { let pwd = \"hunter2\"; println!(\"{}\", pwd); }")])
-            .expect("ws");
+        let ws = temp_workspace_with(&[(
+            "a.rs",
+            "fn main() { let pwd = \"hunter2\"; println!(\"{}\", pwd); }",
+        )])
+        .expect("ws");
         let agent = MockLlmAgent::new();
         agent.enqueue_structured_ok(issues_response(&[
             (1, "high", "hardcoded password literal"),
@@ -715,7 +707,9 @@ mod tests {
         assert_eq!(findings[0].detector, "llm-toy");
         // location uses workspace-relative path
         match &findings[0].location {
-            Location::File { path, start_line, .. } => {
+            Location::File {
+                path, start_line, ..
+            } => {
                 assert_eq!(path, "a.rs");
                 assert_eq!(*start_line, 1);
             }
@@ -725,11 +719,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_continues_on_per_file_agent_error() {
-        let ws = temp_workspace_with(&[
-            ("a.rs", "fn a() {}"),
-            ("b.rs", "fn b() {}"),
-        ])
-        .expect("ws");
+        let ws = temp_workspace_with(&[("a.rs", "fn a() {}"), ("b.rs", "fn b() {}")]).expect("ws");
         let agent = MockLlmAgent::new();
         agent
             .enqueue_structured_err(LlmError::Provider("boom".into()))
@@ -753,11 +743,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_continues_on_per_file_schema_mismatch() {
-        let ws = temp_workspace_with(&[
-            ("a.rs", "fn a() {}"),
-            ("b.rs", "fn b() {}"),
-        ])
-        .expect("ws");
+        let ws = temp_workspace_with(&[("a.rs", "fn a() {}"), ("b.rs", "fn b() {}")]).expect("ws");
         let agent = MockLlmAgent::new();
         agent
             .enqueue_structured_ok(serde_json::json!({"unrelated": "shape"}))
@@ -831,9 +817,7 @@ mod tests {
     async fn run_caps_at_max_findings_per_file() {
         let ws = temp_workspace_with(&[("a.rs", "fn a() {}")]).expect("ws");
         let agent = MockLlmAgent::new();
-        let many: Vec<_> = (1..=10)
-            .map(|i| (i, "low", "noise"))
-            .collect();
+        let many: Vec<_> = (1..=10).map(|i| (i, "low", "noise")).collect();
         agent.enqueue_structured_ok(issues_response(&many));
         let tools = MockToolHost::new();
         let params = serde_json::json!({"max_findings_per_file": 3});
@@ -904,7 +888,10 @@ mod tests {
             },
         );
         assert_eq!(f1.rule_id, f2.rule_id);
-        assert_ne!(f1.fingerprint, f2.fingerprint, "different paths/lines should still differ in fingerprint");
+        assert_ne!(
+            f1.fingerprint, f2.fingerprint,
+            "different paths/lines should still differ in fingerprint"
+        );
     }
 
     #[tokio::test]
