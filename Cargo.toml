@@ -92,6 +92,9 @@ walkdir  = "2"
 
 # LLM adapter (PIN EXACT — only used by ph0b0s-llm-adk)
 adk-rust = "=0.6.0"
+# MCP client. Imported directly only by ph0b0s-llm-adk (allow-listed in xtask).
+# Pinned to the version pulled in by adk-rust 0.6.0 to avoid graph divergence.
+rmcp = { version = "0.7", features = ["client", "transport-child-process"] }
 
 # Dev / test
 insta       = "1"
