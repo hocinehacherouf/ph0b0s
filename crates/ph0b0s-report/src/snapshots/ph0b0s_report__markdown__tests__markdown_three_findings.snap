@@ -1,0 +1,52 @@
+---
+source: crates/ph0b0s-report/src/markdown.rs
+expression: body
+---
+# ph0b0s scan report
+
+- **Run ID:** `01HZ5FXENYVTPVXVYAZR938NKR`
+- **Started:** 2026-04-01T00:00:00+00:00
+- **Finished:** 2026-04-01T00:00:00+00:00
+- **Findings:** 3 (1 high, 1 medium, 1 low)
+
+## Summary by severity
+
+| Severity | Count |
+|---|---|
+| Critical | 0 |
+| High | 1 |
+| Medium | 1 |
+| Low | 1 |
+| None | 0 |
+
+## Findings
+
+### `ph0b0s.test.rule-0` — Finding 0 _( Low )_
+
+- **Detector:** test
+- **Confidence:** Medium
+- **Severity (numeric):** 3.0
+- **Location:** `src/file_0.rs:1`
+- **Fingerprint:** `cf08c6f77c67343809ee890c0f85d112`
+
+synthetic finding number 0
+
+### `ph0b0s.test.rule-1` — Finding 1 _( Medium )_
+
+- **Detector:** test
+- **Confidence:** Medium
+- **Severity (numeric):** 5.5
+- **Location:** `src/file_1.rs:2`
+- **Fingerprint:** `b5a45f0eaa281427397e56479713238c`
+
+synthetic finding number 1
+
+### `ph0b0s.test.rule-2` — Finding 2 _( High )_
+
+- **Detector:** test
+- **Confidence:** Medium
+- **Severity (numeric):** 7.5
+- **Location:** `src/file_2.rs:3`
+- **Fingerprint:** `7ad211964904334ccfb0e3289125bbc9`
+
+synthetic finding number 2

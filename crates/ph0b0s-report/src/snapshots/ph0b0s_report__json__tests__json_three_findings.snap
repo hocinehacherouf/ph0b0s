@@ -1,0 +1,118 @@
+---
+source: crates/ph0b0s-report/src/json.rs
+expression: body
+---
+{
+  "run_id": "01HZ5FXENYVTPVXVYAZR938NKR",
+  "started_at": "2026-04-01T00:00:00Z",
+  "finished_at": "2026-04-01T00:00:00Z",
+  "findings": [
+    {
+      "id": "00000000000000000000000000",
+      "rule_id": "ph0b0s.test.rule-0",
+      "detector": "test",
+      "severity": {
+        "kind": "qualitative",
+        "low": null
+      },
+      "confidence": "medium",
+      "title": "Finding 0",
+      "message": "synthetic finding number 0",
+      "location": {
+        "kind": "file",
+        "path": "src/file_0.rs",
+        "start_line": 1,
+        "end_line": 1,
+        "start_col": null,
+        "end_col": null
+      },
+      "evidence": [
+        {
+          "kind": "note",
+          "value": "ev-0"
+        }
+      ],
+      "fingerprint": "cf08c6f77c67343809ee890c0f85d112",
+      "sanitization": {
+        "kind": "raw"
+      },
+      "suppressions": [],
+      "created_at": "2026-04-01T00:00:00Z"
+    },
+    {
+      "id": "00000000000000000000000001",
+      "rule_id": "ph0b0s.test.rule-1",
+      "detector": "test",
+      "severity": {
+        "kind": "qualitative",
+        "medium": null
+      },
+      "confidence": "medium",
+      "title": "Finding 1",
+      "message": "synthetic finding number 1",
+      "location": {
+        "kind": "file",
+        "path": "src/file_1.rs",
+        "start_line": 2,
+        "end_line": 2,
+        "start_col": null,
+        "end_col": null
+      },
+      "evidence": [
+        {
+          "kind": "note",
+          "value": "ev-1"
+        }
+      ],
+      "fingerprint": "b5a45f0eaa281427397e56479713238c",
+      "sanitization": {
+        "kind": "raw"
+      },
+      "suppressions": [],
+      "created_at": "2026-04-01T00:00:00Z"
+    },
+    {
+      "id": "00000000000000000000000002",
+      "rule_id": "ph0b0s.test.rule-2",
+      "detector": "test",
+      "severity": {
+        "kind": "qualitative",
+        "high": null
+      },
+      "confidence": "medium",
+      "title": "Finding 2",
+      "message": "synthetic finding number 2",
+      "location": {
+        "kind": "file",
+        "path": "src/file_2.rs",
+        "start_line": 3,
+        "end_line": 3,
+        "start_col": null,
+        "end_col": null
+      },
+      "evidence": [
+        {
+          "kind": "note",
+          "value": "ev-2"
+        }
+      ],
+      "fingerprint": "7ad211964904334ccfb0e3289125bbc9",
+      "sanitization": {
+        "kind": "raw"
+      },
+      "suppressions": [],
+      "created_at": "2026-04-01T00:00:00Z"
+    }
+  ],
+  "stats": {
+    "by_severity": {},
+    "by_detector": {},
+    "total_findings": 0,
+    "total_suppressed": 0,
+    "total_deduped": 0,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cost_usd_estimate": 0.0
+  },
+  "errors": []
+}

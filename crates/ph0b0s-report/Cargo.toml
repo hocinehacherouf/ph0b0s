@@ -20,4 +20,6 @@ thiserror   = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
-insta = { workspace = true }
+insta = { workspace = true, features = ["json"] }
+ph0b0s-test-support = { workspace = true }
+tokio = { workspace = true }

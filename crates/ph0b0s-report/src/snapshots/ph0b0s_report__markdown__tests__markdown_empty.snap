@@ -1,0 +1,22 @@
+---
+source: crates/ph0b0s-report/src/markdown.rs
+expression: body
+---
+# ph0b0s scan report
+
+- **Run ID:** `01HZ5FXENYVTPVXVYAZR938NKR`
+- **Started:** 2026-04-01T00:00:00+00:00
+- **Finished:** 2026-04-01T00:00:00+00:00
+- **Findings:** 0 (none)
+
+## Summary by severity
+
+| Severity | Count |
+|---|---|
+| Critical | 0 |
+| High | 0 |
+| Medium | 0 |
+| Low | 0 |
+| None | 0 |
+
+_No findings._
