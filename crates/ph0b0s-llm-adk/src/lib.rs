@@ -28,4 +28,5 @@ pub mod usage;
 
 pub use agent::{AdkLlmAgent, AdkSession};
 pub use config::{AgentConfig, ProviderConfig, ProviderRegistry};
+pub use error::BuildError;
 pub use tools::AdkToolHost;
