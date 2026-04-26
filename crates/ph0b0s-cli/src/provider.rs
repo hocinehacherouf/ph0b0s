@@ -19,6 +19,16 @@ mod tests {
     use super::*;
     use crate::config::Config;
 
+    /// Per-binary serialization for env-var mutation in CLI tests. Any test in
+    /// this crate that mutates `PH0B0S_PROVIDER` / `*_API_KEY` / `OLLAMA_HOST`
+    /// must take this lock first; cargo runs tests in a binary in parallel by
+    /// default. Mirrors the adapter-side `env_lock()` pattern.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
     /// Saves env vars relevant to provider selection and clears them, returning
     /// a guard that restores them on drop. Use this in tests that exercise the
     /// provider dispatcher to make them hermetic against the host shell.
@@ -62,6 +72,7 @@ mod tests {
     /// selection logic is tested exhaustively in `ph0b0s_llm_adk::provider`.
     #[test]
     fn dispatcher_propagates_no_provider_error() {
+        let _g = env_lock();
         let _saver = EnvSaver::new(&[
             "PH0B0S_PROVIDER",
             "ANTHROPIC_API_KEY",
