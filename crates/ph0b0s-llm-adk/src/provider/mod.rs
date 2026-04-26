@@ -5,9 +5,9 @@
 use crate::error::BuildError;
 
 pub mod anthropic;
-// Filled in in later tasks: openai, gemini, ollama, mock.
+pub mod openai;
+// Filled in in later tasks: gemini, ollama, mock.
 //
-// pub mod openai;
 // pub mod gemini;
 // pub mod ollama;
 // pub mod mock;

@@ -91,7 +91,7 @@ regex    = "1"
 walkdir  = "2"
 
 # LLM adapter (PIN EXACT — only used by ph0b0s-llm-adk)
-adk-rust = "=0.6.0"
+adk-rust = { version = "=0.6.0", features = ["openai"] }
 # MCP client. Imported directly only by ph0b0s-llm-adk (allow-listed in xtask).
 # Pinned to the exact version adk-rust 0.6.0 transitively pulls in so that Cargo
 # deduplicates to a single rmcp copy and rmcp::Peer is the same type on both sides.
