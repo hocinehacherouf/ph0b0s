@@ -23,7 +23,7 @@ pub(crate) fn require_env(key: &'static str) -> Result<String, BuildError> {
 // Re-export the env-mutation helpers for sibling test modules in the
 // `provider` tree. They're private to the crate.
 #[cfg(test)]
-pub(crate) use helper_tests::{env_lock, set_var, unset_var};
+pub(crate) use helper_tests::{EnvVarGuard, env_lock, unset_var};
 
 #[cfg(test)]
 mod helper_tests {
@@ -47,24 +47,41 @@ mod helper_tests {
         unsafe { std::env::remove_var(k) }
     }
 
+    /// RAII guard: sets `key=value` on construction; unsets on drop.
+    /// Always pair with `env_lock()`.
+    pub(crate) struct EnvVarGuard {
+        key: &'static str,
+    }
+
+    impl EnvVarGuard {
+        pub(crate) fn set(key: &'static str, value: &str) -> Self {
+            set_var(key, value);
+            Self { key }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            unset_var(self.key);
+        }
+    }
+
     #[test]
     fn require_env_returns_value_when_set() {
         let _g = env_lock();
-        set_var("PH0B0S_TEST_REQUIRE_ENV_X", "value");
+        let _v = EnvVarGuard::set("PH0B0S_TEST_REQUIRE_ENV_X", "value");
         assert_eq!(require_env("PH0B0S_TEST_REQUIRE_ENV_X").unwrap(), "value");
-        unset_var("PH0B0S_TEST_REQUIRE_ENV_X");
     }
 
     #[test]
     fn require_env_rejects_empty_string() {
         let _g = env_lock();
-        set_var("PH0B0S_TEST_REQUIRE_ENV_Y", "");
+        let _v = EnvVarGuard::set("PH0B0S_TEST_REQUIRE_ENV_Y", "");
         let err = require_env("PH0B0S_TEST_REQUIRE_ENV_Y").unwrap_err();
         match err {
             BuildError::MissingKey(k) => assert_eq!(k, "PH0B0S_TEST_REQUIRE_ENV_Y"),
             other => panic!("expected MissingKey, got {other:?}"),
         }
-        unset_var("PH0B0S_TEST_REQUIRE_ENV_Y");
     }
 
     #[test]
@@ -72,6 +89,6 @@ mod helper_tests {
         let _g = env_lock();
         unset_var("PH0B0S_TEST_NEVER_SET");
         let err = require_env("PH0B0S_TEST_NEVER_SET").unwrap_err();
-        matches!(err, BuildError::MissingKey(_));
+        assert!(matches!(err, BuildError::MissingKey(_)));
     }
 }

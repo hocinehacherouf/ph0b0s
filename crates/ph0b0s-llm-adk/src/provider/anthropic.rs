@@ -23,7 +23,7 @@ pub fn build(model: Option<&str>) -> Result<AdkLlmAgent, BuildError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::{env_lock, set_var, unset_var};
+    use crate::provider::{EnvVarGuard, env_lock, unset_var};
     use ph0b0s_core::llm::LlmAgent;
 
     #[test]
@@ -40,18 +40,16 @@ mod tests {
     #[test]
     fn happy_path_uses_default_model() {
         let _g = env_lock();
-        set_var("ANTHROPIC_API_KEY", "sk-ant-test-key");
+        let _v = EnvVarGuard::set("ANTHROPIC_API_KEY", "sk-ant-test-key");
         let agent = build(None).expect("should build");
         assert_eq!(agent.model_id(), DEFAULT_MODEL);
-        unset_var("ANTHROPIC_API_KEY");
     }
 
     #[test]
     fn override_model_passes_through() {
         let _g = env_lock();
-        set_var("ANTHROPIC_API_KEY", "sk-ant-test-key");
+        let _v = EnvVarGuard::set("ANTHROPIC_API_KEY", "sk-ant-test-key");
         let agent = build(Some("claude-opus-4-7")).expect("should build");
         assert_eq!(agent.model_id(), "claude-opus-4-7");
-        unset_var("ANTHROPIC_API_KEY");
     }
 }
