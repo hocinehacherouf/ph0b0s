@@ -149,7 +149,7 @@ async fn main() -> Result<()> {
             detectors,
             report_cost,
         } => {
-            let agent = provider::build_from_env()?;
+            let agent = provider::build_from_config(&config)?;
             let target = Target::LocalDirectory { path };
             let args = ScanArgs {
                 target,

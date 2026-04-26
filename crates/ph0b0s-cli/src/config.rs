@@ -74,6 +74,8 @@ impl Default for ScanConfig {
 #[serde(default)]
 pub struct ProviderConfig {
     pub default_model: Option<String>,
+    /// OpenAI-compatible endpoints + Ollama server URL.
+    pub base_url: Option<String>,
     // api_key NEVER here — read from env vars at runtime.
 }
 
@@ -81,7 +83,8 @@ pub struct ProviderConfig {
 #[serde(default)]
 pub struct AgentConfig {
     pub provider: String,
-    pub model: String,
+    /// Per-agent model override. `None` ⇒ use the per-provider default.
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -154,6 +157,34 @@ impl Config {
                 PathBuf::from(home).join(".local").join("state")
             });
         base.join("ph0b0s").join("findings.db")
+    }
+
+    /// Map the figment-loaded `HashMap<String, ProviderConfig>` to the
+    /// adapter's typed `ProviderRegistry`.
+    pub fn provider_registry(&self) -> ph0b0s_llm_adk::ProviderRegistry {
+        use ph0b0s_llm_adk::{ProviderConfig as AdkProviderConfig, ProviderRegistry};
+        let to_adk = |c: &ProviderConfig| AdkProviderConfig {
+            default_model: c.default_model.clone(),
+            base_url: c.base_url.clone(),
+        };
+        ProviderRegistry {
+            anthropic: self.providers.get("anthropic").map(to_adk),
+            openai: self.providers.get("openai").map(to_adk),
+            gemini: self.providers.get("gemini").map(to_adk),
+            ollama: self.providers.get("ollama").map(to_adk),
+        }
+    }
+
+    /// Map `[agents.default]` to the adapter's typed `AgentConfig`. Returns
+    /// `None` when no default agent is configured (callers fall back to the
+    /// env-key detection path).
+    pub fn default_agent(&self) -> Option<ph0b0s_llm_adk::AgentConfig> {
+        self.agents
+            .get("default")
+            .map(|a| ph0b0s_llm_adk::AgentConfig {
+                provider: a.provider.clone(),
+                model: a.model.clone(),
+            })
     }
 
     /// Effective config with secrets redacted, suitable for `config check`
