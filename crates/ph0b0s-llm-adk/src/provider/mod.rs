@@ -6,9 +6,9 @@ use crate::error::BuildError;
 
 pub mod anthropic;
 pub mod gemini;
+pub mod mock;
 pub mod ollama;
 pub mod openai;
-// Filled in in later tasks: mock.
 
 /// Read `key` from env, returning `BuildError::MissingKey` if absent or empty.
 pub(crate) fn require_env(key: &'static str) -> Result<String, BuildError> {
