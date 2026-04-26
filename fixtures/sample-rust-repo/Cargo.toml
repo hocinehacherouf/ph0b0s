@@ -1,0 +1,15 @@
+[package]
+name    = "sample-vulnerable"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Intentionally minimal. The end-to-end integration test does not actually
+# resolve / build this crate — it only wants the workspace to look like a
+# real Rust project so that:
+#  - `ph0b0s-detect-cargo-audit` finds a `Cargo.lock` and tries to invoke
+#    its (faked) `cargo audit` binary
+#  - `ph0b0s-detect-llm-toy` finds `src/main.rs` and feeds it to the
+#    (mocked) LLM provider
+
+[dependencies]

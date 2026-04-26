@@ -1,0 +1,11 @@
+[
+  {
+    "issues": [
+      {
+        "line": 5,
+        "severity": "high",
+        "message": "hardcoded password literal in source"
+      }
+    ]
+  }
+]

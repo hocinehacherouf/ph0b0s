@@ -1,0 +1,40 @@
+{
+  "lockfile": { "dependency-count": 1 },
+  "settings": {
+    "target_arch": [],
+    "target_os": [],
+    "ignore": [],
+    "informational_warnings": []
+  },
+  "vulnerabilities": {
+    "found": true,
+    "count": 1,
+    "list": [
+      {
+        "advisory": {
+          "id": "RUSTSEC-2099-0001",
+          "package": "fake-fixture-crate",
+          "title": "Fixture: simulated remote execution in fake-fixture-crate",
+          "description": "Synthetic advisory used by ph0b0s' end-to-end integration test. Do not panic.",
+          "date": "2099-01-01",
+          "aliases": ["CVE-2099-99999"],
+          "categories": ["code-execution"],
+          "keywords": [],
+          "cvss": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+          "url": "https://example.invalid/RUSTSEC-2099-0001",
+          "references": []
+        },
+        "versions": { "patched": [">= 99.0.0"], "unaffected": [] },
+        "affected": null,
+        "package": {
+          "name": "fake-fixture-crate",
+          "version": "0.1.0",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": null,
+          "dependencies": []
+        }
+      }
+    ]
+  },
+  "warnings": {}
+}
