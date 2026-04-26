@@ -29,16 +29,15 @@ pub struct ProviderConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderRegistry {
     pub anthropic: Option<ProviderConfig>,
-    pub openai:    Option<ProviderConfig>,
-    pub gemini:    Option<ProviderConfig>,
-    pub ollama:    Option<ProviderConfig>,
+    pub openai: Option<ProviderConfig>,
+    pub gemini: Option<ProviderConfig>,
+    pub ollama: Option<ProviderConfig>,
 }
 
 impl ProviderRegistry {
     /// Look up the per-provider model override (if any).
     pub fn model_for(&self, provider: &str) -> Option<&str> {
-        self.get(provider)
-            .and_then(|p| p.default_model.as_deref())
+        self.get(provider).and_then(|p| p.default_model.as_deref())
     }
 
     /// Look up the per-provider base_url override (if any).
@@ -49,10 +48,10 @@ impl ProviderRegistry {
     fn get(&self, provider: &str) -> Option<&ProviderConfig> {
         match provider {
             "anthropic" => self.anthropic.as_ref(),
-            "openai"    => self.openai.as_ref(),
-            "gemini"    => self.gemini.as_ref(),
-            "ollama"    => self.ollama.as_ref(),
-            _           => None,
+            "openai" => self.openai.as_ref(),
+            "gemini" => self.gemini.as_ref(),
+            "ollama" => self.ollama.as_ref(),
+            _ => None,
         }
     }
 }
