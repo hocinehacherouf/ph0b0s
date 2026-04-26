@@ -1710,6 +1710,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cvss"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7fb220d3ce1b565af39cee5b89e47fd8dd1dab162900ee4363c8ee4169ee8a2"
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3629,13 +3635,16 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "cvss",
  "ph0b0s-core",
  "ph0b0s-test-support",
  "schemars 0.8.22",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "tracing",
  "ulid",
 ]
