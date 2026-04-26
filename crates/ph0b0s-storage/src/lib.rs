@@ -1,4 +1,9 @@
-//! ph0b0s SQLite-backed FindingStore.
+//! ph0b0s SQLite-backed `FindingStore`.
 //!
-//! Implementation lands in a follow-up scaffolding pass; this stub keeps the
-//! workspace buildable while ph0b0s-core stabilises.
+//! Public surface: [`SqliteFindingStore::open`] for on-disk databases and
+//! [`SqliteFindingStore::open_in_memory`] for tests. Both run the embedded
+//! migrations under `migrations/0001_init.sql` before returning.
+
+pub mod sqlite;
+
+pub use sqlite::SqliteFindingStore;

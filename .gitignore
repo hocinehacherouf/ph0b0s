@@ -28,3 +28,8 @@ report.md
 report.json
 
 graphify-out/
+
+# Claude Code local settings
+.claude/local/
+.claude/*.local
+.claude/settings.local.json
