@@ -48,6 +48,11 @@ pub fn build_from_config(
 
 /// Env-detection fallback. Iterates canonical env vars in fixed precedence
 /// and builds the first that matches.
+///
+/// Order is intentional: `ANTHROPIC_API_KEY` → `OPENAI_API_KEY` → `GOOGLE_API_KEY` → `OLLAMA_HOST`.
+/// First match wins; later keys are ignored. If you have multiple keys set
+/// and want a different provider, set `PH0B0S_PROVIDER=<name>` (or define
+/// `[agents.default]` in `ph0b0s.toml`) to disambiguate explicitly.
 pub fn build_from_env(providers: &ProviderRegistry) -> Result<AdkLlmAgent, BuildError> {
     if std::env::var("ANTHROPIC_API_KEY").is_ok() {
         return anthropic::build(providers.model_for("anthropic"));
