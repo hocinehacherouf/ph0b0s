@@ -2,9 +2,7 @@
 //! round-trips a scan, drops the store, reopens the same file, and verifies
 //! the data survives.
 
-use ph0b0s_core::scan::{
-    DetectorFilter, ScanOptions, ScanRequest, ScanStats,
-};
+use ph0b0s_core::scan::{DetectorFilter, ScanOptions, ScanRequest, ScanStats};
 use ph0b0s_core::store::FindingStore;
 use ph0b0s_core::target::Target;
 use ph0b0s_storage::SqliteFindingStore;
@@ -33,7 +31,10 @@ async fn on_disk_open_close_reopen_preserves_data() {
             })
             .await
             .expect("begin_run");
-        store.record(run_id, &sample_finding()).await.expect("record");
+        store
+            .record(run_id, &sample_finding())
+            .await
+            .expect("record");
         store
             .finish_run(run_id, &ScanStats::default())
             .await
@@ -41,7 +42,10 @@ async fn on_disk_open_close_reopen_preserves_data() {
     }
 
     // File on disk should now exist.
-    assert!(path.exists(), "expected SQLite file to exist after first open");
+    assert!(
+        path.exists(),
+        "expected SQLite file to exist after first open"
+    );
 
     // Reopen and confirm we can load the run back.
     let store2 = SqliteFindingStore::open(&path).await.expect("reopen");

@@ -15,17 +15,16 @@ use crate::registry::DetectorRegistry;
 // `ph0b0s detectors list`
 // ---------------------------------------------------------------------------
 
-pub async fn detectors_list(
-    config: &Config,
-    enabled_only: bool,
-    as_json: bool,
-) -> Result<()> {
+pub async fn detectors_list(config: &Config, enabled_only: bool, as_json: bool) -> Result<()> {
     let registry = DetectorRegistry::builtin();
     let mut entries = Vec::new();
     for id in registry.ids() {
         let resolved = registry.resolve(&[id.to_owned()], config);
         let enabled_in_config = !registry.resolve(&[], config).is_empty()
-            && registry.resolve(&[], config).iter().any(|r| r.detector.metadata().id == id);
+            && registry
+                .resolve(&[], config)
+                .iter()
+                .any(|r| r.detector.metadata().id == id);
         let enabled = !resolved.is_empty() && enabled_in_config;
         if enabled_only && !enabled {
             continue;
@@ -51,7 +50,11 @@ pub async fn detectors_list(
         println!("{}", serde_json::to_string_pretty(&entries)?);
     } else {
         for e in &entries {
-            let mark = if e["enabled"].as_bool().unwrap_or(false) { "✓" } else { "✗" };
+            let mark = if e["enabled"].as_bool().unwrap_or(false) {
+                "✓"
+            } else {
+                "✗"
+            };
             println!(
                 "{mark} {id:24} {kind:?}  — {desc}",
                 mark = mark,
@@ -94,9 +97,7 @@ pub async fn report_show(
 ) -> Result<()> {
     let store = SqliteFindingStore::open(&config.effective_db_path()).await?;
     let id = match run_id {
-        Some(s) => {
-            Ulid::from_string(&s).map_err(|e| anyhow::anyhow!("invalid run_id {s}: {e}"))?
-        }
+        Some(s) => Ulid::from_string(&s).map_err(|e| anyhow::anyhow!("invalid run_id {s}: {e}"))?,
         None => latest_run_id(&store).await?,
     };
     let result = store.load_run(id).await?;
@@ -121,11 +122,7 @@ async fn latest_run_id(store: &SqliteFindingStore) -> Result<Ulid> {
 // `ph0b0s triage suppress <fingerprint>`
 // ---------------------------------------------------------------------------
 
-pub async fn triage_suppress(
-    config: &Config,
-    fingerprint: String,
-    reason: String,
-) -> Result<()> {
+pub async fn triage_suppress(config: &Config, fingerprint: String, reason: String) -> Result<()> {
     let store = SqliteFindingStore::open(&config.effective_db_path()).await?;
     store
         .suppress(&Fingerprint(fingerprint.clone()), &reason)
@@ -143,7 +140,10 @@ pub async fn config_check(config: &Config) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&config.redacted_json())?);
     println!();
     println!("✓ no api_key fields detected in TOML layers");
-    println!("  effective DB path: {}", config.effective_db_path().display());
+    println!(
+        "  effective DB path: {}",
+        config.effective_db_path().display()
+    );
     Ok(())
 }
 
@@ -153,10 +153,7 @@ pub async fn config_check(config: &Config) -> Result<()> {
 
 pub async fn mcp_list(config: &Config, as_json: bool) -> Result<()> {
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&config.mcp_servers)?
-        );
+        println!("{}", serde_json::to_string_pretty(&config.mcp_servers)?);
         return Ok(());
     }
     if config.mcp_servers.is_empty() {

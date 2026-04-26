@@ -33,10 +33,21 @@ impl From<&str> for AgentRoleKey {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum ChatMessage {
-    System { content: String },
-    User { content: String },
-    Assistant { content: String, tool_calls: Vec<ToolCall> },
-    Tool { tool_call_id: String, name: String, content: String },
+    System {
+        content: String,
+    },
+    User {
+        content: String,
+    },
+    Assistant {
+        content: String,
+        tool_calls: Vec<ToolCall>,
+    },
+    Tool {
+        tool_call_id: String,
+        name: String,
+        content: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -46,7 +57,9 @@ pub struct UserMessage {
 
 impl UserMessage {
     pub fn new(content: impl Into<String>) -> Self {
-        Self { content: content.into() }
+        Self {
+            content: content.into(),
+        }
     }
 }
 
@@ -96,12 +109,16 @@ impl ChatRequest {
     }
 
     pub fn system(mut self, content: impl Into<String>) -> Self {
-        self.messages.push(ChatMessage::System { content: content.into() });
+        self.messages.push(ChatMessage::System {
+            content: content.into(),
+        });
         self
     }
 
     pub fn user(mut self, content: impl Into<String>) -> Self {
-        self.messages.push(ChatMessage::User { content: content.into() });
+        self.messages.push(ChatMessage::User {
+            content: content.into(),
+        });
         self
     }
 }
@@ -184,10 +201,7 @@ pub trait LlmAgent: Send + Sync {
 
     /// Open a multi-turn session. Implementations decide token/budget caps;
     /// callers must treat dropped sessions as fatal.
-    async fn session(
-        &self,
-        opts: SessionOptions,
-    ) -> Result<Box<dyn LlmSession>, LlmError>;
+    async fn session(&self, opts: SessionOptions) -> Result<Box<dyn LlmSession>, LlmError>;
 
     fn model_id(&self) -> &str;
     fn role(&self) -> &AgentRoleKey;

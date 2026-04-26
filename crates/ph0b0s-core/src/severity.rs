@@ -118,9 +118,15 @@ mod tests {
 
     #[test]
     fn sarif_level_mapping() {
-        assert_eq!(Severity::Qualitative(Level::Critical).sarif_level(), "error");
+        assert_eq!(
+            Severity::Qualitative(Level::Critical).sarif_level(),
+            "error"
+        );
         assert_eq!(Severity::Qualitative(Level::High).sarif_level(), "error");
-        assert_eq!(Severity::Qualitative(Level::Medium).sarif_level(), "warning");
+        assert_eq!(
+            Severity::Qualitative(Level::Medium).sarif_level(),
+            "warning"
+        );
         assert_eq!(Severity::Qualitative(Level::Low).sarif_level(), "note");
         assert_eq!(Severity::Qualitative(Level::None).sarif_level(), "note");
     }

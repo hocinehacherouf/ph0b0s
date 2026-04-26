@@ -44,9 +44,5 @@ pub enum WorkspaceGuard {
 
 #[async_trait]
 pub trait TargetMaterializer: Send + Sync {
-    async fn prepare(
-        &self,
-        target: &Target,
-        ctx: &ScanCtx,
-    ) -> Result<Workspace, CoreError>;
+    async fn prepare(&self, target: &Target, ctx: &ScanCtx) -> Result<Workspace, CoreError>;
 }

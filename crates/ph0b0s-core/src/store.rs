@@ -28,9 +28,5 @@ pub trait FindingStore: Send + Sync {
     async fn dedup(&self, run_id: Ulid) -> Result<usize, StoreError>;
 
     /// Persist a manual suppression for a finding fingerprint.
-    async fn suppress(
-        &self,
-        fingerprint: &Fingerprint,
-        reason: &str,
-    ) -> Result<(), StoreError>;
+    async fn suppress(&self, fingerprint: &Fingerprint, reason: &str) -> Result<(), StoreError>;
 }

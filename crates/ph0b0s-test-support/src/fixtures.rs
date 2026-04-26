@@ -6,9 +6,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, TimeZone, Utc};
 use ph0b0s_core::error::CoreError;
-use ph0b0s_core::finding::{
-    Confidence, Evidence, Finding, Location, SanitizationState,
-};
+use ph0b0s_core::finding::{Confidence, Evidence, Finding, Location, SanitizationState};
 use ph0b0s_core::scan::{ScanResult, ScanStats};
 use ph0b0s_core::severity::{Level, Severity};
 use ph0b0s_core::target::{Workspace, WorkspaceGuard};
@@ -18,8 +16,8 @@ use ulid::Ulid;
 pub fn deterministic_run_id() -> Ulid {
     // 16 bytes — chosen arbitrarily but fixed forever.
     Ulid::from_bytes([
-        0x01, 0x8F, 0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD,
-        0xBE, 0xEF, 0xCA, 0xFE, 0x12, 0x34, 0x56, 0x78,
+        0x01, 0x8F, 0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0x12, 0x34, 0x56,
+        0x78,
     ])
 }
 
@@ -220,9 +218,8 @@ mod tests {
 
     #[test]
     fn temp_workspace_with_seeds_listed_files() {
-        let ws =
-            temp_workspace_with(&[("a.txt", "alpha"), ("nested/b.txt", "bravo")])
-                .expect("seeded workspace");
+        let ws = temp_workspace_with(&[("a.txt", "alpha"), ("nested/b.txt", "bravo")])
+            .expect("seeded workspace");
         assert_eq!(
             std::fs::read_to_string(ws.root.join("a.txt")).unwrap(),
             "alpha"

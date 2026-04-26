@@ -177,10 +177,7 @@ impl NativeTool for CannedTool {
         self.spec.clone()
     }
 
-    async fn call(
-        &self,
-        _args: serde_json::Value,
-    ) -> Result<serde_json::Value, ToolError> {
+    async fn call(&self, _args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         Ok(self.response.clone())
     }
 }
@@ -197,10 +194,7 @@ mod tests {
     #[tokio::test]
     async fn register_native_then_invoke_dispatches_to_tool() {
         let host = MockToolHost::new();
-        host.register_native(CannedTool::new(
-            "echo",
-            serde_json::json!({"echoed": true}),
-        ));
+        host.register_native(CannedTool::new("echo", serde_json::json!({"echoed": true})));
         let out = host
             .invoke("echo", serde_json::json!({"x": 1}))
             .await
@@ -211,10 +205,7 @@ mod tests {
     #[tokio::test]
     async fn canned_response_overrides_registered_tool() {
         let host = MockToolHost::new();
-        host.register_native(CannedTool::new(
-            "echo",
-            serde_json::json!({"from": "tool"}),
-        ));
+        host.register_native(CannedTool::new("echo", serde_json::json!({"from": "tool"})));
         host.enqueue_response("echo", serde_json::json!({"from": "canned"}));
 
         let first = host.invoke("echo", serde_json::json!({})).await.unwrap();
@@ -241,10 +232,7 @@ mod tests {
     #[tokio::test]
     async fn enqueue_error_propagates_for_named_tool() {
         let host = MockToolHost::new();
-        host.enqueue_error(
-            "broken",
-            ToolError::Execution("stub failure".into()),
-        );
+        host.enqueue_error("broken", ToolError::Execution("stub failure".into()));
         let err = host
             .invoke("broken", serde_json::json!({}))
             .await

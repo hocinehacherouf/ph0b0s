@@ -9,11 +9,15 @@ use ph0b0s_cli::commands::{self, ReportFormat};
 use ph0b0s_cli::config::Config;
 use ph0b0s_cli::provider;
 use ph0b0s_cli::scan::{self, ScanArgs};
-use ph0b0s_core::target::Target;
 use ph0b0s_core::severity::Level;
+use ph0b0s_core::target::Target;
 
 #[derive(Parser, Debug)]
-#[command(name = "ph0b0s", about = "Vendor-neutral agentic AppSec scanner", version)]
+#[command(
+    name = "ph0b0s",
+    about = "Vendor-neutral agentic AppSec scanner",
+    version
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -166,16 +170,15 @@ async fn main() -> Result<()> {
         Cmd::Report {
             cmd: ReportCmd::Show { run_id, format },
         } => {
-            let f: ReportFormat = format
-                .parse()
-                .map_err(|e: String| anyhow::anyhow!("{e}"))?;
+            let f: ReportFormat = format.parse().map_err(|e: String| anyhow::anyhow!("{e}"))?;
             commands::report_show(&config, run_id, f).await
         }
         Cmd::Triage {
-            cmd: TriageCmd::Suppress {
-                fingerprint,
-                reason,
-            },
+            cmd:
+                TriageCmd::Suppress {
+                    fingerprint,
+                    reason,
+                },
         } => commands::triage_suppress(&config, fingerprint, reason).await,
         Cmd::Config {
             cmd: ConfigCmd::Check,
@@ -213,7 +216,13 @@ fn print_summary(outcome: &scan::ScanOutcome) {
     if outcome.deduped > 0 {
         eprintln!("  deduped:  {}", outcome.deduped);
     }
-    for level in [Level::Critical, Level::High, Level::Medium, Level::Low, Level::None] {
+    for level in [
+        Level::Critical,
+        Level::High,
+        Level::Medium,
+        Level::Low,
+        Level::None,
+    ] {
         let n = by_level.get(&level).copied().unwrap_or(0);
         if n > 0 {
             eprintln!("    {level:?}: {n}");

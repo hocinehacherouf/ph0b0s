@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+
+# Cancel in-progress runs for the same ref when a new push lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85"
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ph0b0s
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test (workspace)
+        run: cargo test --workspace --all-features
+
+      - name: vendor-coupling fitness function
+        run: cargo run -p xtask -- check-vendor
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          # Pin the action's own deny version for reproducibility; bump
+          # when we want to pull in newer advisories.
+          rust-version: "1.85"
+
+  coverage:
+    # Generates LCOV via cargo-llvm-cov (works on stable, unlike the
+    # nightly-only `-Zprofile` + grcov approach in the official codecov
+    # example) and uploads to Codecov.
+    #
+    # For public repos on GitHub, codecov-action@v5 uses OIDC and does
+    # not require a token. Private repos must set the `CODECOV_TOKEN`
+    # repo secret.
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85"
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ph0b0s-coverage
+
+      - name: Generate coverage (lcov)
+        # `--ignore-filename-regex` mirrors the `ignore:` block in
+        # `codecov.yml` so the number cargo-llvm-cov reports locally
+        # matches what Codecov displays.
+        run: |
+          cargo llvm-cov --workspace --all-features \
+            --ignore-filename-regex 'xtask|/tests/|fixtures/|ph0b0s-test-support|ph0b0s-cli/src/(main|workspace)\.rs' \
+            --lcov --output-path lcov.info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: hocinehacherouf/ph0b0s
+          files: lcov.info
+          fail_ci_if_error: true
+          verbose: true
+
+  # Sanity job that runs the binary's --help on a clean checkout so the
+  # release artefact is always at least invokable. Catches packaging
+  # regressions that unit + integration tests miss.
+  smoke:
+    name: smoke (--help)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ph0b0s
+      - name: cargo build --release ph0b0s-cli
+        run: cargo build --release -p ph0b0s-cli
+      - name: ph0b0s --help
+        run: ./target/release/ph0b0s --help

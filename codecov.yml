@@ -1,0 +1,57 @@
+# codecov.io configuration for ph0b0s.
+# See https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "85..100"
+
+  status:
+    project:
+      default:
+        # Project floor: every PR must keep workspace coverage at or above
+        # 90%. Allows gradual improvement without forcing coverage of
+        # `Debug` impls or panic arms inside test assertions.
+        target: 90%
+        # Tightest sustainable threshold: a PR can drop project coverage
+        # by at most 0.5% (rounding noise). Hard regressions block.
+        threshold: 0.5%
+        # Block PRs that violate the rule (no longer informational).
+        informational: false
+
+    patch:
+      default:
+        # 100% on patch: every new or changed line must be covered. This
+        # is the load-bearing gate — drives the "I need 100% coverage"
+        # invariant on incoming code without forcing retroactive
+        # coverage of legacy paths.
+        target: 100%
+        threshold: 0%
+        informational: false
+
+# Files we deliberately don't count toward coverage.
+ignore:
+  # CI fitness function — runs once during `cargo run -p xtask -- check-vendor`,
+  # not exercised by `cargo test`.
+  - "xtask/"
+  # Integration tests live alongside binaries; their coverage is incidental.
+  - "**/tests/**"
+  # Sample fixtures are not Rust code.
+  - "fixtures/"
+  # Test infrastructure (mocks, fixture builders). Counting it would
+  # double-count: every line of a Mock impl that a test exercises shows
+  # up in both the production-code path AND in the mock crate's own
+  # report.
+  - "crates/ph0b0s-test-support/"
+  # Process entrypoint. clap dispatch and tracing init are exercised by
+  # the end-to-end integration test (which itself runs the binary).
+  - "crates/ph0b0s-cli/src/main.rs"
+  # `git clone --depth 1 --branch` path. OS-dependent (requires `git` on
+  # PATH and a real source repo to clone); covered manually + by the
+  # `cargo run` smoke job in CI.
+  - "crates/ph0b0s-cli/src/workspace.rs"
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false

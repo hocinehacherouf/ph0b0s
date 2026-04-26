@@ -79,7 +79,10 @@ fn scenario() -> Scenario {
 
     // Generate the fake `cargo` binary.
     let canned_audit = fs::read_to_string(
-        cli_manifest_dir().join("tests").join("canned").join("cargo_audit_output.json"),
+        cli_manifest_dir()
+            .join("tests")
+            .join("canned")
+            .join("cargo_audit_output.json"),
     )
     .expect("read canned audit json");
     let fake_cargo = scratch.path().join("fake-cargo.sh");
@@ -129,20 +132,19 @@ fn assert_run(scenario: &Scenario) {
         .env("PH0B0S_PROVIDER", "mock")
         .env("PH0B0S_MOCK_RESPONSES", &canned_responses)
         // Ensure no stray defaults from the developer's user config bleed in.
-        .env("XDG_CONFIG_HOME", scenario._scratch.path().join("xdg-config"))
+        .env(
+            "XDG_CONFIG_HOME",
+            scenario._scratch.path().join("xdg-config"),
+        )
         .env("HOME", scenario._scratch.path().join("fake-home"))
         .args(["scan", "."])
-        .args([
-            "--output",
-            scenario.sarif.to_str().expect("path is utf8"),
-        ])
+        .args(["--output", scenario.sarif.to_str().expect("path is utf8")])
         .assert()
         .success();
 }
 
 fn parse_sarif(path: &Path) -> Value {
-    let body = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let body = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     serde_json::from_str(&body).expect("sarif is valid JSON")
 }
 
@@ -182,7 +184,8 @@ fn full_scan_emits_findings_from_both_detector_paths() {
 
     // Spot-check the cargo-audit finding round-trips the canned advisory id.
     assert!(
-        ids.iter().any(|id| id == "ph0b0s.cargo-audit.RUSTSEC-2099-0001"),
+        ids.iter()
+            .any(|id| id == "ph0b0s.cargo-audit.RUSTSEC-2099-0001"),
         "cargo-audit advisory id mismatch; got: {ids:?}"
     );
 }
@@ -205,7 +208,10 @@ fn report_show_re_emits_latest_run_from_db() {
         .current_dir(&scenario.project)
         .env("PH0B0S_PROVIDER", "mock")
         .env("PH0B0S_MOCK_RESPONSES", &canned_responses)
-        .env("XDG_CONFIG_HOME", scenario._scratch.path().join("xdg-config"))
+        .env(
+            "XDG_CONFIG_HOME",
+            scenario._scratch.path().join("xdg-config"),
+        )
         .env("HOME", scenario._scratch.path().join("fake-home"))
         .args(["report", "show", "--format", "sarif"])
         .assert()
@@ -215,8 +221,8 @@ fn report_show_re_emits_latest_run_from_db() {
         .clone();
 
     let body = String::from_utf8(stdout).expect("utf8 stdout");
-    let parsed: Value = serde_json::from_str(body.trim())
-        .expect("report show emitted invalid sarif");
+    let parsed: Value =
+        serde_json::from_str(body.trim()).expect("report show emitted invalid sarif");
     assert_eq!(parsed["version"], "2.1.0");
     let ids = rule_ids(&parsed);
     assert!(ids.iter().any(|id| id.starts_with("ph0b0s.cargo-audit.")));

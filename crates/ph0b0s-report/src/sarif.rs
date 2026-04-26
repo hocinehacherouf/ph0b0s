@@ -41,8 +41,7 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 const TOOL_NAME: &str = "ph0b0s";
 const TOOL_VERSION: &str = env!("CARGO_PKG_VERSION");
 const TOOL_INFORMATION_URI: &str = "https://github.com/hocinehacherouf/ph0b0s";
-const SARIF_SCHEMA: &str =
-    "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json";
+const SARIF_SCHEMA: &str = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json";
 const FINGERPRINT_KEY: &str = "ph0b0s/v1";
 
 #[derive(Default, Clone, Copy)]
@@ -59,16 +58,14 @@ impl SarifReporter {
     /// bug in this reporter, not bad input.
     pub fn build(&self, result: &ScanResult) -> Result<Sarif, ReportError> {
         let value = self.build_value(result);
-        serde_json::from_value::<Sarif>(value)
-            .map_err(|e| ReportError::InvalidSarif(e.to_string()))
+        serde_json::from_value::<Sarif>(value).map_err(|e| ReportError::InvalidSarif(e.to_string()))
     }
 
     /// Build the SARIF tree as a `serde_json::Value`. Useful when you want
     /// untyped access (e.g. for snapshot tests).
     pub fn build_value(&self, result: &ScanResult) -> Value {
         let rules = build_rules(&result.findings);
-        let sarif_results: Vec<Value> =
-            result.findings.iter().map(build_result).collect();
+        let sarif_results: Vec<Value> = result.findings.iter().map(build_result).collect();
 
         json!({
             "$schema": SARIF_SCHEMA,
@@ -161,7 +158,12 @@ fn build_result(f: &Finding) -> Value {
         "sanitization".to_owned(),
         serde_json::to_value(&f.sanitization).unwrap_or(Value::Null),
     );
-    if let Location::Symbolic { package, version, ecosystem } = &f.location {
+    if let Location::Symbolic {
+        package,
+        version,
+        ecosystem,
+    } = &f.location
+    {
         props.insert("package".to_owned(), Value::String(package.clone()));
         props.insert("version".to_owned(), Value::String(version.clone()));
         props.insert("ecosystem".to_owned(), Value::String(ecosystem.clone()));
@@ -182,8 +184,7 @@ fn build_result(f: &Finding) -> Value {
     result.insert("properties".to_owned(), Value::Object(props));
 
     if !f.suppressions.is_empty() {
-        let suppressions: Vec<Value> =
-            f.suppressions.iter().map(build_suppression).collect();
+        let suppressions: Vec<Value> = f.suppressions.iter().map(build_suppression).collect();
         result.insert("suppressions".to_owned(), Value::Array(suppressions));
     }
 
@@ -217,7 +218,11 @@ fn build_location(loc: &Location) -> Value {
                 }
             })
         }
-        Location::Symbolic { package, version, ecosystem } => json!({
+        Location::Symbolic {
+            package,
+            version,
+            ecosystem,
+        } => json!({
             "logicalLocations": [
                 {
                     "name": format!("{ecosystem}:{package}@{version}"),
@@ -306,8 +311,7 @@ mod tests {
     async fn security_severity_is_string_with_one_decimal() {
         let r = sample_scan_result(1);
         let value = SarifReporter.build_value(&r);
-        let sev =
-            &value["runs"][0]["results"][0]["properties"]["security-severity"];
+        let sev = &value["runs"][0]["results"][0]["properties"]["security-severity"];
         let s = sev.as_str().unwrap();
         // sample_scan_result(1) starts at Level::Low → numeric 3.0
         assert_eq!(s, "3.0");

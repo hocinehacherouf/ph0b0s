@@ -20,9 +20,7 @@
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use ph0b0s_core::detector::{
-    Detector, DetectorCtx, DetectorKind, DetectorMetadata,
-};
+use ph0b0s_core::detector::{Detector, DetectorCtx, DetectorKind, DetectorMetadata};
 use ph0b0s_core::error::DetectorError;
 use ph0b0s_core::finding::{
     Confidence, Evidence, Finding, Fingerprint, Location, SanitizationState,
@@ -89,10 +87,7 @@ impl Detector for CargoAuditDetector {
     ) -> Result<Vec<Finding>, DetectorError> {
         let lockfile = ctx.workspace.root.join("Cargo.lock");
         if !lockfile.is_file() {
-            tracing::debug!(
-                "no Cargo.lock at {} — skipping",
-                lockfile.display()
-            );
+            tracing::debug!("no Cargo.lock at {} — skipping", lockfile.display());
             return Ok(Vec::new());
         }
 
@@ -136,9 +131,8 @@ fn parse_params(raw: &serde_json::Value) -> Result<Params, DetectorError> {
     fn default_no_fetch() -> bool {
         true
     }
-    let raw: ParamsRaw = serde_json::from_value(raw.clone()).map_err(|e| {
-        DetectorError::InvalidParams(format!("cargo-audit params: {e}"))
-    })?;
+    let raw: ParamsRaw = serde_json::from_value(raw.clone())
+        .map_err(|e| DetectorError::InvalidParams(format!("cargo-audit params: {e}")))?;
     Ok(Params {
         no_fetch: raw.no_fetch,
         cargo_path: raw.cargo_path.unwrap_or_else(|| "cargo".to_owned()),
@@ -252,9 +246,8 @@ struct RawPackage {
 /// Public so tests in this crate (and potentially adapter integration tests)
 /// can exercise the parser without spawning a subprocess.
 pub fn parse_audit_output(stdout: &str) -> Result<Vec<Finding>, DetectorError> {
-    let report: AuditReport = serde_json::from_str(stdout).map_err(|e| {
-        DetectorError::Parse(format!("cargo-audit JSON: {e}"))
-    })?;
+    let report: AuditReport = serde_json::from_str(stdout)
+        .map_err(|e| DetectorError::Parse(format!("cargo-audit JSON: {e}")))?;
 
     let mut findings = Vec::with_capacity(report.vulnerabilities.list.len());
     for vuln in report.vulnerabilities.list {
@@ -274,8 +267,7 @@ fn vuln_to_finding(vuln: &RawVulnerability) -> Finding {
 
     // Re-serialize the raw advisory + package as evidence so consumers can
     // see the original record (URL, references, CVSS vector, etc.).
-    let raw_value = serde_json::to_value(serialize_raw(vuln))
-        .unwrap_or(serde_json::Value::Null);
+    let raw_value = serde_json::to_value(serialize_raw(vuln)).unwrap_or(serde_json::Value::Null);
 
     let title = if vuln.advisory.title.is_empty() {
         format!("{} ({})", vuln.advisory.id, vuln.package.name)
@@ -348,7 +340,10 @@ fn build_message(vuln: &RawVulnerability) -> String {
 /// pass-through fields. We keep the original shape for traceability.
 fn serialize_raw(vuln: &RawVulnerability) -> serde_json::Value {
     let mut advisory = serde_json::Map::new();
-    advisory.insert("id".into(), serde_json::Value::String(vuln.advisory.id.clone()));
+    advisory.insert(
+        "id".into(),
+        serde_json::Value::String(vuln.advisory.id.clone()),
+    );
     advisory.insert(
         "title".into(),
         serde_json::Value::String(vuln.advisory.title.clone()),
@@ -396,10 +391,12 @@ fn serialize_raw(vuln: &RawVulnerability) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ph0b0s_core::llm::{AgentRoleKey, ChatRequest, LlmAgent, LlmSession, SessionOptions, StructuredRequest};
     use ph0b0s_core::error::LlmError;
+    use ph0b0s_core::llm::{
+        AgentRoleKey, ChatRequest, LlmAgent, LlmSession, SessionOptions, StructuredRequest,
+    };
     use ph0b0s_test_support::{
-        deterministic_run_id, temp_workspace, temp_workspace_with, MockToolHost,
+        MockToolHost, deterministic_run_id, temp_workspace, temp_workspace_with,
     };
     use std::time::{Duration, Instant};
 
@@ -417,7 +414,9 @@ mod tests {
         async fn session(&self, _: SessionOptions) -> Result<Box<dyn LlmSession>, LlmError> {
             panic!("subprocess detector must not call agent.session()")
         }
-        fn model_id(&self) -> &str { "none" }
+        fn model_id(&self) -> &str {
+            "none"
+        }
         fn role(&self) -> &AgentRoleKey {
             static R: std::sync::OnceLock<AgentRoleKey> = std::sync::OnceLock::new();
             R.get_or_init(|| AgentRoleKey::new("none"))
@@ -512,7 +511,11 @@ mod tests {
         assert_eq!(f.title, "Memory corruption in openssl");
         assert_eq!(f.confidence, Confidence::High);
         match &f.location {
-            Location::Symbolic { package, version, ecosystem } => {
+            Location::Symbolic {
+                package,
+                version,
+                ecosystem,
+            } => {
                 assert_eq!(package, "openssl");
                 assert_eq!(version, "0.10.0");
                 assert_eq!(ecosystem, "crates.io");
@@ -604,11 +607,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_propagates_missing_tool_when_cargo_path_invalid() {
-        let ws = temp_workspace_with(&[(
-            "Cargo.lock",
-            "# minimal lockfile shell\n",
-        )])
-        .expect("ws");
+        let ws = temp_workspace_with(&[("Cargo.lock", "# minimal lockfile shell\n")]).expect("ws");
         let agent = PanickingAgent;
         let tools = MockToolHost::new();
         let ctx = DetectorCtx {
