@@ -23,6 +23,7 @@
 pub mod agent;
 pub mod config;
 pub mod error;
+pub mod provider;
 pub mod tools;
 pub mod usage;
 
