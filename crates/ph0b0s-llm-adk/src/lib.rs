@@ -21,9 +21,11 @@
 //! `adk_model::MockLlm`).
 
 pub mod agent;
+pub mod config;
 pub mod error;
 pub mod tools;
 pub mod usage;
 
 pub use agent::{AdkLlmAgent, AdkSession};
+pub use config::{AgentConfig, ProviderConfig, ProviderRegistry};
 pub use tools::AdkToolHost;
