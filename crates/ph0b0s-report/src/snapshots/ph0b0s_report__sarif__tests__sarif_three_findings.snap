@@ -1,0 +1,158 @@
+---
+source: crates/ph0b0s-report/src/sarif.rs
+expression: body
+---
+{
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ph0b0s",
+          "version": "0.0.1",
+          "informationUri": "https://github.com/hocinehacherouf/ph0b0s",
+          "rules": [
+            {
+              "id": "ph0b0s.test.rule-0",
+              "name": "ph0b0s.test.rule-0",
+              "shortDescription": {
+                "text": "Finding 0"
+              },
+              "properties": {
+                "detector": "test"
+              }
+            },
+            {
+              "id": "ph0b0s.test.rule-1",
+              "name": "ph0b0s.test.rule-1",
+              "shortDescription": {
+                "text": "Finding 1"
+              },
+              "properties": {
+                "detector": "test"
+              }
+            },
+            {
+              "id": "ph0b0s.test.rule-2",
+              "name": "ph0b0s.test.rule-2",
+              "shortDescription": {
+                "text": "Finding 2"
+              },
+              "properties": {
+                "detector": "test"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "ph0b0s.test.rule-0",
+          "level": "note",
+          "message": {
+            "text": "synthetic finding number 0"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/file_0.rs"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "ph0b0s/v1": "cf08c6f77c67343809ee890c0f85d112"
+          },
+          "properties": {
+            "security-severity": "3.0",
+            "confidence": "medium",
+            "evidence": [
+              {
+                "kind": "note",
+                "value": "ev-0"
+              }
+            ],
+            "sanitization": {
+              "kind": "raw"
+            }
+          }
+        },
+        {
+          "ruleId": "ph0b0s.test.rule-1",
+          "level": "warning",
+          "message": {
+            "text": "synthetic finding number 1"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/file_1.rs"
+                },
+                "region": {
+                  "startLine": 2
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "ph0b0s/v1": "b5a45f0eaa281427397e56479713238c"
+          },
+          "properties": {
+            "security-severity": "5.5",
+            "confidence": "medium",
+            "evidence": [
+              {
+                "kind": "note",
+                "value": "ev-1"
+              }
+            ],
+            "sanitization": {
+              "kind": "raw"
+            }
+          }
+        },
+        {
+          "ruleId": "ph0b0s.test.rule-2",
+          "level": "error",
+          "message": {
+            "text": "synthetic finding number 2"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/file_2.rs"
+                },
+                "region": {
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "ph0b0s/v1": "7ad211964904334ccfb0e3289125bbc9"
+          },
+          "properties": {
+            "security-severity": "7.5",
+            "confidence": "medium",
+            "evidence": [
+              {
+                "kind": "note",
+                "value": "ev-2"
+              }
+            ],
+            "sanitization": {
+              "kind": "raw"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
