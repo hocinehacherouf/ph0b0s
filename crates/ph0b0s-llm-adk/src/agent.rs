@@ -35,6 +35,17 @@ pub struct AdkLlmAgent {
     default_system: Option<String>,
 }
 
+impl std::fmt::Debug for AdkLlmAgent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AdkLlmAgent")
+            .field("model_id", &self.model_id)
+            .field("role", &self.role)
+            .field("default_system", &self.default_system)
+            .field("llm", &"<dyn adk_core::Llm>")
+            .finish()
+    }
+}
+
 impl AdkLlmAgent {
     pub fn new(
         llm: Arc<dyn adk_rust::Llm>,
@@ -133,6 +144,20 @@ pub struct AdkSession {
     llm: Arc<dyn adk_rust::Llm>,
     model_id: String,
     state: Arc<Mutex<SessionState>>,
+}
+
+impl std::fmt::Debug for AdkSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let history_len = self
+            .state
+            .lock()
+            .map(|s| s.history.len())
+            .unwrap_or(0);
+        f.debug_struct("AdkSession")
+            .field("model_id", &self.model_id)
+            .field("history_len", &history_len)
+            .finish()
+    }
 }
 
 struct SessionState {
