@@ -12,6 +12,7 @@ authors     = { workspace = true }
 ph0b0s-core = { workspace = true }
 async-trait = { workspace = true }
 tokio       = { workspace = true }
+tokio-util  = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 schemars    = { workspace = true }
@@ -26,3 +27,4 @@ ulid        = { workspace = true }
 [dev-dependencies]
 ph0b0s-test-support = { workspace = true }
 tokio = { workspace = true }
+tempfile = { workspace = true }
