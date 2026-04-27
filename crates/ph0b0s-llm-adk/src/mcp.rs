@@ -66,6 +66,12 @@ pub async fn mount(spec: McpServerSpec) -> Result<MountResult, ToolError> {
     for (k, v) in &spec.env {
         cmd.env(k, v);
     }
+    // Reap the child when the Command/transport drops. Without this, cancelling
+    // the `RunningService` only stops the rmcp service task — the spawned MCP
+    // server process can outlive us. With it, the tokio runtime sends SIGKILL
+    // on Drop so transitive shutdown (toolset drop -> RunningService drop ->
+    // transport drop -> Command drop) reaches the child.
+    cmd.kill_on_drop(true);
 
     let transport = TokioChildProcess::new(cmd)
         .map_err(|e| ToolError::McpTransport(format!("spawn {}: {e}", spec.name)))?;

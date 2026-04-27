@@ -7,8 +7,10 @@
 //! model to autonomously call — that requires a tool-call loop in the
 //! adapter, which the plan explicitly defers.
 //!
-//! `mount_mcp` records the spec and logs a warning. Actual MCP connection
-//! is a TBD per the slice (e) plan; the seam stays stable.
+//! `mount_mcp` delegates to [`crate::mcp::mount`] for stdio transports; it
+//! registers each discovered tool as a native tool and stores the lifecycle
+//! handle so the host can cancel transports on shutdown. Non-stdio transports
+//! are still warned-and-recorded pending follow-up support.
 //!
 //! Same dispatch policy as `MockToolHost` (canned-first, then native, then
 //! `Unknown`) so detection packs can rely on consistent behaviour across
@@ -20,13 +22,16 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use ph0b0s_core::error::ToolError;
 use ph0b0s_core::llm::ToolSpec;
-use ph0b0s_core::tools::{McpServerSpec, NativeTool, ToolHost};
+use ph0b0s_core::tools::{McpServerSpec, McpTransport, NativeTool, ToolHost};
+
+use crate::mcp;
 
 #[derive(Default)]
 struct State {
     native_tools: Mutex<HashMap<String, Arc<dyn NativeTool>>>,
     canned: Mutex<HashMap<String, VecDeque<Result<serde_json::Value, ToolError>>>>,
     mounted_mcp: Mutex<Vec<McpServerSpec>>,
+    mcp_handles: Mutex<Vec<mcp::McpHandle>>,
     invocations: Mutex<Vec<(String, serde_json::Value)>>,
 }
 
@@ -79,6 +84,24 @@ impl AdkToolHost {
             .lock()
             .expect("mounted_mcp poisoned")
             .clone()
+    }
+
+    /// Cancel every mounted MCP server's transport. Idempotent: drains the
+    /// handle list so a second call is a no-op. Called by the CLI's shutdown
+    /// path; failing to call it is not fatal (rmcp closes stdio on drop and
+    /// `kill_on_drop` reaps the child) but produces cleaner logs.
+    pub async fn shutdown_mcp(&self) {
+        let handles: Vec<_> = self
+            .state
+            .mcp_handles
+            .lock()
+            .expect("mcp_handles poisoned")
+            .drain(..)
+            .collect();
+        for h in handles {
+            tracing::debug!(server = %h.server_name, "cancelling MCP transport");
+            h.cancel.cancel();
+        }
     }
 }
 
@@ -142,13 +165,41 @@ impl ToolHost for AdkToolHost {
 
     #[tracing::instrument(skip(self, server), fields(server = %server.name))]
     async fn mount_mcp(&self, server: McpServerSpec) -> Result<(), ToolError> {
-        // v1 limitation: actual MCP connection deferred. Record the spec so
-        // observability and tests can confirm the request reached the host.
-        tracing::warn!(
-            server = %server.name,
-            "MCP mount recorded but not yet connected (v1 limitation: \
-             adk-rust MCP integration TBD)"
-        );
+        if !matches!(server.transport, McpTransport::Stdio) {
+            // v1 limitation: only stdio is wired through `mcp::mount`. Record
+            // the spec so observability/tests can confirm the request reached
+            // the host while we wait on SSE / streamable-HTTP support.
+            tracing::warn!(
+                server = %server.name,
+                transport = ?server.transport,
+                "non-stdio MCP transport — recording spec but not connecting"
+            );
+            self.state
+                .mounted_mcp
+                .lock()
+                .expect("mounted_mcp poisoned")
+                .push(server);
+            return Ok(());
+        }
+
+        let result = mcp::mount(server.clone()).await?;
+        // Register every discovered tool as a NativeTool. Last-mount-wins on
+        // name collisions: matches our existing `register_native` semantics.
+        {
+            let mut natives = self
+                .state
+                .native_tools
+                .lock()
+                .expect("native_tools poisoned");
+            for tool in result.tools {
+                natives.insert(tool.spec().name, tool);
+            }
+        }
+        self.state
+            .mcp_handles
+            .lock()
+            .expect("mcp_handles poisoned")
+            .push(result.handle);
         self.state
             .mounted_mcp
             .lock()
@@ -226,12 +277,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mount_mcp_records_spec_returns_ok() {
+    async fn mount_mcp_non_stdio_transport_records_and_warns() {
+        // Stdio is now wired to `mcp::mount`, which would actually try to
+        // spawn a subprocess. Exercise the warn-and-record fallback path with
+        // a non-stdio transport instead. A real stdio integration test that
+        // spawns a fixture server lives in slice (e) Task 19.
         let host = AdkToolHost::new();
         let spec = McpServerSpec {
-            name: "fs".into(),
-            transport: McpTransport::Stdio,
-            command_or_url: vec!["uvx".into(), "mcp-server-filesystem".into()],
+            name: "remote".into(),
+            transport: McpTransport::Sse,
+            command_or_url: vec!["http://example.com/sse".into()],
             env: Default::default(),
         };
         host.mount_mcp(spec.clone()).await.unwrap();
