@@ -192,7 +192,14 @@ impl ToolHost for AdkToolHost {
                 .lock()
                 .expect("native_tools poisoned");
             for tool in result.tools {
-                natives.insert(tool.spec().name, tool);
+                let name = tool.spec().name;
+                if natives.insert(name.clone(), tool).is_some() {
+                    tracing::warn!(
+                        tool = %name,
+                        server = %server.name,
+                        "MCP tool name collides with previously registered tool — last mount wins"
+                    );
+                }
             }
         }
         self.state
