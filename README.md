@@ -39,26 +39,55 @@ local change.
 | `ph0b0s-report` (SARIF 2.1.0 + Markdown + JSON) | ✅ stable |
 | `ph0b0s-detect-cargo-audit` (subprocess detector) | ✅ smoke detector |
 | `ph0b0s-detect-llm-toy` (LLM-driven detector) | ✅ smoke detector |
-| `ph0b0s-llm-adk` (adk-rust adapter) | ✅ slice (e) limitations apply — see below |
-| `ph0b0s-cli` (`ph0b0s` binary) | ✅ slice (e) wiring; mock provider only |
+| `ph0b0s-llm-adk` (adk-rust adapter) | ✅ Anthropic + OpenAI + Gemini + Ollama wired; tool-call loop active; stdio MCP supported |
+| `ph0b0s-cli` (`ph0b0s` binary) | ✅ TOML-driven provider selection + env-var fallback |
 
-### Known limitations in slice (e)
+### Current limitations
 
 These are intentional and tracked in the seam doc-comments. They will be
 lifted in follow-on slices.
 
 - **Sequential detector execution** (the `max_parallel` config knob exists
   but is not honoured yet).
-- **Only `PH0B0S_PROVIDER=mock` is fully wired.** Real provider
-  construction (Anthropic / OpenAI / Gemini / Ollama) returns a clear
-  "not yet wired" error.
-- **`ToolHost::mount_mcp` records the spec** but does not connect to the
-  MCP server.
-- **No tool-call loop in the adapter** — `ChatRequest.tools` triggers a
-  warning.
+- **MCP transports: stdio only.** SSE / StreamableHTTP entries are
+  recorded with a warning but no live connection.
+- **Single global agent per scan.** Per-role agent assignment
+  (`reasoner`, `triager`, etc.) is deferred until a detector needs it.
+- **Sequential tool dispatch.** When the model emits multiple
+  `FunctionCall`s in one turn, we dispatch them one by one.
 - **No streaming** in the LLM seam (additive change later).
 - **Linux/macOS only.** The end-to-end integration test is gated
   `#[cfg(unix)]`.
+
+### Provider configuration
+
+`ph0b0s` picks a provider in this order (highest precedence first):
+
+1. `PH0B0S_PROVIDER` env override (e.g. `PH0B0S_PROVIDER=mock` for hermetic runs).
+2. Explicit `[agents.default]` in `ph0b0s.toml`.
+3. Env-key auto-detection: `ANTHROPIC_API_KEY` → Anthropic,
+   `OPENAI_API_KEY` → OpenAI, `GOOGLE_API_KEY` → Gemini,
+   `OLLAMA_HOST` → Ollama.
+
+Set the corresponding API key (never in TOML) and run:
+
+```bash
+ANTHROPIC_API_KEY=... cargo run -p ph0b0s-cli -- scan ./some-repo
+```
+
+Override per-provider defaults in `ph0b0s.toml`:
+
+```toml
+[providers.anthropic]
+default_model = "claude-opus-4-7"
+
+[providers.openai]
+base_url = "https://openrouter.ai/api/v1"
+default_model = "openai/gpt-5"
+
+[agents.default]
+provider = "anthropic"
+```
 
 ## Quick start
 
