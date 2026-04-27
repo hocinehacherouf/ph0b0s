@@ -866,4 +866,105 @@ mod tests {
         assert_eq!(resp.usage.tokens_in, 8);
         assert_eq!(resp.usage.tokens_out, 9);
     }
+
+    #[tokio::test]
+    async fn chat_feeds_tool_error_back_as_function_response() {
+        use ph0b0s_test_support::MockToolHost;
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![
+            fc_response("search", serde_json::json!({"q": "x"})),
+            text_response("recovered"),
+        ]));
+        let host = Arc::new(MockToolHost::new());
+        host.enqueue_error(
+            "search",
+            ph0b0s_core::error::ToolError::Execution("boom".into()),
+        );
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host.clone();
+        let agent = AdkLlmAgent::new(llm, "scripted").with_tool_host(host_dyn);
+        let resp = agent.chat(ChatRequest::new().user("go")).await.unwrap();
+        // The model "recovered" after seeing the FunctionResponse{"error": ...}
+        // payload — the loop did not propagate the error as LlmError.
+        assert_eq!(resp.content, "recovered");
+        assert_eq!(host.invocations().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn chat_returns_tool_dispatch_error_when_max_turns_exceeded() {
+        use ph0b0s_test_support::MockToolHost;
+        // 11 function-call responses; default loop cap is 10 turns.
+        let mut canned = Vec::new();
+        for i in 0..11 {
+            canned.push(fc_response("loop", serde_json::json!({"i": i})));
+        }
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(canned));
+        let host = Arc::new(MockToolHost::new());
+        for _ in 0..11 {
+            host.enqueue_response("loop", serde_json::json!({}));
+        }
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host;
+        let agent = AdkLlmAgent::new(llm, "scripted").with_tool_host(host_dyn);
+        let err = agent
+            .chat(ChatRequest::new().user("loop"))
+            .await
+            .unwrap_err();
+        match err {
+            LlmError::ToolDispatch(msg) => {
+                assert!(
+                    msg.contains("max_tool_turns"),
+                    "expected max_tool_turns in: {msg}"
+                );
+                // Should also include the diagnostic info added in the previous fix.
+                assert!(msg.contains("last_calls"), "expected last_calls in: {msg}");
+            }
+            other => panic!("expected ToolDispatch, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn chat_dispatches_multiple_calls_in_one_turn_sequentially() {
+        use ph0b0s_test_support::MockToolHost;
+        // Turn 1: model emits two FunctionCalls in the same Content.
+        let mut content = adk_rust::Content::new("model");
+        content.parts.push(adk_rust::Part::FunctionCall {
+            name: "a".into(),
+            args: serde_json::json!({}),
+            id: Some("call_a".into()),
+            thought_signature: None,
+        });
+        content.parts.push(adk_rust::Part::FunctionCall {
+            name: "b".into(),
+            args: serde_json::json!({}),
+            id: Some("call_b".into()),
+            thought_signature: None,
+        });
+        let multi_call_resp = adk_rust::LlmResponse {
+            content: Some(content),
+            usage_metadata: Some(adk_rust::UsageMetadata::default()),
+            finish_reason: None,
+            ..Default::default()
+        };
+        let llm: Arc<dyn adk_rust::Llm> =
+            Arc::new(ScriptedLlm::new(vec![multi_call_resp, text_response("ok")]));
+        let host = Arc::new(MockToolHost::new());
+        host.enqueue_response("a", serde_json::json!("a-ret"));
+        host.enqueue_response("b", serde_json::json!("b-ret"));
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host.clone();
+        let agent = AdkLlmAgent::new(llm, "scripted").with_tool_host(host_dyn);
+        let _ = agent.chat(ChatRequest::new().user("go")).await.unwrap();
+        // Sequential dispatch in emission order.
+        let order: Vec<String> = host.invocations().iter().map(|(n, _)| n.clone()).collect();
+        assert_eq!(order, vec!["a".to_owned(), "b".to_owned()]);
+    }
+
+    #[tokio::test]
+    async fn chat_with_no_tool_host_feeds_unknown_error_back() {
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![
+            fc_response("anything", serde_json::json!({})),
+            text_response("done"),
+        ]));
+        let agent = AdkLlmAgent::new(llm, "scripted"); // no tool host
+        let resp = agent.chat(ChatRequest::new().user("go")).await.unwrap();
+        // The model received a ToolError::Unknown payload and recovered.
+        assert_eq!(resp.content, "done");
+    }
 }
