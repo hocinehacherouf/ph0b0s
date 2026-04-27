@@ -65,6 +65,27 @@ impl AdkLlmAgent {
         self.default_system = Some(prompt.into());
         self
     }
+
+    async fn run_loop(
+        &self,
+        messages: Vec<ChatMessage>,
+        schema: Option<serde_json::Value>,
+        _hints: &std::collections::BTreeMap<String, serde_json::Value>,
+    ) -> Result<ChatResponse, LlmError> {
+        let adk_req = build_request(
+            &self.model_id,
+            &messages,
+            self.default_system.as_deref(),
+            schema,
+        );
+        let stream = self
+            .llm
+            .generate_content(adk_req, false)
+            .await
+            .map_err(map_adk_error)?;
+        let response = collect_final(stream).await?;
+        Ok(to_chat_response(response))
+    }
 }
 
 #[async_trait]
@@ -74,23 +95,11 @@ impl LlmAgent for AdkLlmAgent {
         if !req.tools.is_empty() {
             tracing::warn!(
                 tool_count = req.tools.len(),
-                "tools passed to chat() but v1 adapter does not run a tool-call loop; \
-                 model output will not be auto-dispatched"
+                "tools passed to chat() but tool-loop wiring is in progress; \
+                 dispatch is single-shot in this build"
             );
         }
-        let adk_req = build_request(
-            &self.model_id,
-            &req.messages,
-            self.default_system.as_deref(),
-            None,
-        );
-        let stream = self
-            .llm
-            .generate_content(adk_req, false)
-            .await
-            .map_err(map_adk_error)?;
-        let response = collect_final(stream).await?;
-        Ok(to_chat_response(response))
+        self.run_loop(req.messages, None, &req.hints).await
     }
 
     #[tracing::instrument(skip_all, fields(model = %self.model_id, role = %self.role.0, schema = %req.schema_name))]
