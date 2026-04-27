@@ -99,6 +99,8 @@ impl AdkLlmAgent {
             build_initial_contents(&initial_messages, self.default_system.as_deref());
 
         let mut cumulative = Usage::default();
+        let mut last_finish: Option<adk_rust::FinishReason> = None;
+        let mut last_call_names: Vec<String> = Vec::new();
 
         for _turn in 0..max_turns {
             let mut adk_req = adk_rust::LlmRequest::new(self.model_id.clone(), contents.clone());
@@ -116,7 +118,7 @@ impl AdkLlmAgent {
                 &mut cumulative,
                 &from_adk_usage(response.usage_metadata.as_ref()),
             );
-            let last_finish = response.finish_reason;
+            last_finish = response.finish_reason;
 
             let model_content = response
                 .content
@@ -134,6 +136,8 @@ impl AdkLlmAgent {
             }
 
             contents.push(model_content);
+
+            last_call_names = function_calls.iter().map(|(n, _, _)| n.clone()).collect();
 
             let mut tool_parts = Vec::new();
             for (name, args, id) in function_calls {
@@ -154,7 +158,9 @@ impl AdkLlmAgent {
         }
 
         Err(LlmError::ToolDispatch(format!(
-            "model exceeded max_tool_turns ({max_turns}) without producing a final reply"
+            "model exceeded max_tool_turns ({max_turns}) without producing a final reply \
+             (last_finish={:?}, last_calls={:?})",
+            last_finish, last_call_names,
         )))
     }
 }
