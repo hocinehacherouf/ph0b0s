@@ -96,9 +96,6 @@ impl AdkLlmAgent {
             .and_then(|v| v.as_u64())
             .unwrap_or(10) as usize;
 
-        let mut contents =
-            build_initial_contents(&initial_messages, self.default_system.as_deref());
-
         let resolved_tools: Vec<ph0b0s_core::llm::ToolSpec> = if !req_tools.is_empty() {
             req_tools.to_vec()
         } else if let Some(host) = self.tool_host.as_ref() {
@@ -107,84 +104,20 @@ impl AdkLlmAgent {
             Vec::new()
         };
 
-        let mut cumulative = Usage::default();
-        let mut last_finish: Option<adk_rust::FinishReason> = None;
-        let mut last_call_names: Vec<String> = Vec::new();
+        let initial_contents =
+            build_initial_contents(&initial_messages, self.default_system.as_deref());
 
-        for _turn in 0..max_turns {
-            let mut adk_req = adk_rust::LlmRequest::new(self.model_id.clone(), contents.clone());
-            if !resolved_tools.is_empty() {
-                for spec in &resolved_tools {
-                    if adk_req
-                        .tools
-                        .insert(spec.name.clone(), to_adk_tool_decl(spec))
-                        .is_some()
-                    {
-                        tracing::warn!(
-                            tool = %spec.name,
-                            "duplicate tool name in resolved tool list — last definition wins"
-                        );
-                    }
-                }
-            }
-            if let Some(s) = schema.clone() {
-                adk_req = adk_req.with_response_schema(s);
-            }
-
-            let stream = self
-                .llm
-                .generate_content(adk_req, false)
-                .await
-                .map_err(map_adk_error)?;
-            let response = collect_final(stream).await?;
-            accumulate(
-                &mut cumulative,
-                &from_adk_usage(response.usage_metadata.as_ref()),
-            );
-            last_finish = response.finish_reason;
-
-            let model_content = response
-                .content
-                .clone()
-                .unwrap_or_else(|| adk_rust::Content::new("model"));
-            let function_calls = collect_function_calls(&model_content);
-
-            if function_calls.is_empty() {
-                return Ok(ChatResponse {
-                    content: extract_text(Some(&model_content)),
-                    tool_calls: Vec::new(),
-                    usage: cumulative,
-                    finish_reason: map_finish_reason(last_finish),
-                });
-            }
-
-            contents.push(model_content);
-
-            last_call_names = function_calls.iter().map(|(n, _, _)| n.clone()).collect();
-
-            let mut tool_parts = Vec::new();
-            for (name, args, id) in function_calls {
-                let result = match self.tool_host.as_ref() {
-                    Some(host) => host.invoke(&name, args.clone()).await,
-                    None => Err(ph0b0s_core::error::ToolError::Unknown(name.clone())),
-                };
-                let response_value = match result {
-                    Ok(v) => v,
-                    Err(e) => serde_json::json!({"error": e.to_string()}),
-                };
-                tool_parts.push(make_function_response_part(&name, response_value, id));
-            }
-
-            let mut tool_content = adk_rust::Content::new("tool");
-            tool_content.parts = tool_parts;
-            contents.push(tool_content);
-        }
-
-        Err(LlmError::ToolDispatch(format!(
-            "model exceeded max_tool_turns ({max_turns}) without producing a final reply \
-             (last_finish={:?}, last_calls={:?})",
-            last_finish, last_call_names,
-        )))
+        let (response, _final_contents) = run_loop_inner(
+            &self.llm,
+            &self.model_id,
+            initial_contents,
+            self.tool_host.as_ref(),
+            &resolved_tools,
+            schema,
+            max_turns,
+        )
+        .await?;
+        Ok(response)
     }
 }
 
@@ -219,6 +152,7 @@ impl LlmAgent for AdkLlmAgent {
             self.llm.clone(),
             self.model_id.clone(),
             opts.system_prompt.or_else(|| self.default_system.clone()),
+            self.tool_host.clone(),
         )))
     }
 
@@ -243,6 +177,7 @@ pub struct AdkSession {
     llm: Arc<dyn adk_rust::Llm>,
     model_id: String,
     state: Arc<Mutex<SessionState>>,
+    tool_host: Option<Arc<dyn ph0b0s_core::tools::ToolHost>>,
 }
 
 impl std::fmt::Debug for AdkSession {
@@ -265,6 +200,7 @@ impl AdkSession {
         llm: Arc<dyn adk_rust::Llm>,
         model_id: impl Into<String>,
         system_prompt: Option<String>,
+        tool_host: Option<Arc<dyn ph0b0s_core::tools::ToolHost>>,
     ) -> Self {
         let mut history = Vec::new();
         if let Some(sp) = system_prompt {
@@ -277,6 +213,7 @@ impl AdkSession {
                 history,
                 cumulative: Usage::default(),
             })),
+            tool_host,
         }
     }
 
@@ -295,8 +232,8 @@ impl AdkSession {
 impl LlmSession for AdkSession {
     #[tracing::instrument(skip_all, fields(model = %self.model_id))]
     async fn send(&mut self, msg: UserMessage) -> Result<ChatResponse, LlmError> {
-        // Snapshot the current history then append the user turn.
-        let contents = {
+        // Snapshot the current history then append the new user turn.
+        let initial_contents = {
             let mut state = self.state.lock().expect("session state poisoned");
             state
                 .history
@@ -304,21 +241,37 @@ impl LlmSession for AdkSession {
             state.history.clone()
         };
 
-        let req = adk_rust::LlmRequest::new(self.model_id.clone(), contents);
-        let stream = self
-            .llm
-            .generate_content(req, false)
-            .await
-            .map_err(map_adk_error)?;
-        let response = collect_final(stream).await?;
+        let resolved_tools: Vec<ph0b0s_core::llm::ToolSpec> = match self.tool_host.as_ref() {
+            Some(host) => host.list(),
+            None => Vec::new(),
+        };
 
-        // Append the assistant turn to history; accumulate usage.
-        let chat = to_chat_response(response.clone());
+        // Default max_turns; sessions don't expose hints in v1.
+        let max_turns = 10usize;
+
+        let (chat, final_contents) = run_loop_inner(
+            &self.llm,
+            &self.model_id,
+            initial_contents,
+            self.tool_host.as_ref(),
+            &resolved_tools,
+            None,
+            max_turns,
+        )
+        .await?;
+
+        // Replace history with the final contents (which include all model +
+        // tool turns from the loop), and accumulate usage.
         {
             let mut state = self.state.lock().expect("session state poisoned");
-            if let Some(c) = response.content {
-                state.history.push(c);
-            }
+            state.history = final_contents;
+            // Append the final assistant text turn so subsequent sends see it
+            // as conversation history. (run_loop_inner returns history WITHOUT
+            // the final assistant text turn since it returns the response
+            // separately.)
+            state
+                .history
+                .push(adk_rust::Content::new("model").with_text(chat.content.clone()));
             accumulate(&mut state.cumulative, &chat.usage);
         }
         Ok(chat)
@@ -435,6 +388,100 @@ fn make_function_response_part(
     }
 }
 
+/// Shared per-call multi-turn loop. Used by both `AdkLlmAgent::run_loop`
+/// and `AdkSession::send`. Returns the final `ChatResponse` and the full
+/// conversation history (including any model+tool turns appended during
+/// the loop). Caller decides whether to keep the history.
+async fn run_loop_inner(
+    llm: &Arc<dyn adk_rust::Llm>,
+    model_id: &str,
+    mut contents: Vec<adk_rust::Content>,
+    tool_host: Option<&Arc<dyn ph0b0s_core::tools::ToolHost>>,
+    resolved_tools: &[ph0b0s_core::llm::ToolSpec],
+    schema: Option<serde_json::Value>,
+    max_turns: usize,
+) -> Result<(ChatResponse, Vec<adk_rust::Content>), LlmError> {
+    let mut cumulative = Usage::default();
+    let mut last_finish: Option<adk_rust::FinishReason> = None;
+    let mut last_call_names: Vec<String> = Vec::new();
+
+    for _turn in 0..max_turns {
+        let mut adk_req = adk_rust::LlmRequest::new(model_id.to_owned(), contents.clone());
+        if !resolved_tools.is_empty() {
+            for spec in resolved_tools {
+                if adk_req
+                    .tools
+                    .insert(spec.name.clone(), to_adk_tool_decl(spec))
+                    .is_some()
+                {
+                    tracing::warn!(
+                        tool = %spec.name,
+                        "duplicate tool name in resolved tool list — last definition wins"
+                    );
+                }
+            }
+        }
+        if let Some(s) = schema.clone() {
+            adk_req = adk_req.with_response_schema(s);
+        }
+
+        let stream = llm
+            .generate_content(adk_req, false)
+            .await
+            .map_err(map_adk_error)?;
+        let response = collect_final(stream).await?;
+        accumulate(
+            &mut cumulative,
+            &from_adk_usage(response.usage_metadata.as_ref()),
+        );
+        last_finish = response.finish_reason;
+
+        let model_content = response
+            .content
+            .clone()
+            .unwrap_or_else(|| adk_rust::Content::new("model"));
+        let function_calls = collect_function_calls(&model_content);
+
+        if function_calls.is_empty() {
+            return Ok((
+                ChatResponse {
+                    content: extract_text(Some(&model_content)),
+                    tool_calls: Vec::new(),
+                    usage: cumulative,
+                    finish_reason: map_finish_reason(last_finish),
+                },
+                contents,
+            ));
+        }
+
+        last_call_names = function_calls.iter().map(|(n, _, _)| n.clone()).collect();
+        contents.push(model_content);
+
+        let mut tool_parts = Vec::new();
+        for (name, args, id) in function_calls {
+            let result = match tool_host {
+                Some(host) => host.invoke(&name, args.clone()).await,
+                None => Err(ph0b0s_core::error::ToolError::Unknown(name.clone())),
+            };
+            let response_value = match result {
+                Ok(v) => v,
+                Err(e) => serde_json::json!({"error": e.to_string()}),
+            };
+            tool_parts.push(make_function_response_part(&name, response_value, id));
+        }
+
+        let mut tool_content = adk_rust::Content::new("tool");
+        tool_content.parts = tool_parts;
+        contents.push(tool_content);
+    }
+
+    Err(LlmError::ToolDispatch(format!(
+        "model exceeded max_tool_turns ({max_turns}) without producing a final reply \
+         (last_finish={:?}, last_calls={:?})",
+        last_finish, last_call_names
+    )))
+}
+
 fn chat_message_to_content(m: &ChatMessage) -> adk_rust::Content {
     match m {
         ChatMessage::System { content } => {
@@ -464,18 +511,6 @@ async fn collect_final(
         last = Some(resp);
     }
     last.ok_or_else(|| LlmError::Provider("provider returned no responses".into()))
-}
-
-fn to_chat_response(resp: adk_rust::LlmResponse) -> ChatResponse {
-    let usage = from_adk_usage(resp.usage_metadata.as_ref());
-    let finish_reason = map_finish_reason(resp.finish_reason);
-    let content = extract_text(resp.content.as_ref());
-    ChatResponse {
-        content,
-        tool_calls: Vec::new(), // v1 limitation: not surfaced
-        usage,
-        finish_reason,
-    }
 }
 
 fn map_finish_reason(fr: Option<adk_rust::FinishReason>) -> FinishReason {
@@ -647,7 +682,7 @@ mod tests {
         // smarter mock. So here we assert only that one turn appends history
         // and propagates usage; cumulative-add is tested in `accumulate_*`.
         let llm: Arc<dyn adk_rust::Llm> = Arc::new(MockLlm::new("mock-sess").with_response(resp_a));
-        let mut sess = AdkSession::new(llm, "mock-sess", Some("be helpful".into()));
+        let mut sess = AdkSession::new(llm, "mock-sess", Some("be helpful".into()), None);
         let r = sess.send(UserMessage::new("hello")).await.unwrap();
         assert_eq!(r.content, "first");
         assert_eq!(sess.usage().tokens_in, 5);
@@ -662,7 +697,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_send_with_empty_provider_response_errors() {
-        let mut sess = AdkSession::new(mock_llm_empty(), "mock-empty", None);
+        let mut sess = AdkSession::new(mock_llm_empty(), "mock-empty", None, None);
         let err = sess.send(UserMessage::new("ping")).await.unwrap_err();
         matches!(err, LlmError::Provider(_));
     }
@@ -1053,5 +1088,24 @@ mod tests {
         // The warning is emitted via tracing::warn; actual verification of emission
         // requires a tracing subscriber, which is tested at integration level.
         // This test verifies the code path executes without panic and last-write wins.
+    }
+
+    #[tokio::test]
+    async fn session_send_dispatches_function_call_and_extends_history() {
+        use ph0b0s_test_support::MockToolHost;
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![
+            fc_response("search", serde_json::json!({"q":"x"})),
+            text_response("found"),
+        ]));
+        let host = Arc::new(MockToolHost::new());
+        host.enqueue_response("search", serde_json::json!({"hits":1}));
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host.clone();
+        let mut sess = AdkSession::new(llm, "scripted", None, Some(host_dyn));
+        let r = sess.send(UserMessage::new("ping")).await.unwrap();
+        assert_eq!(r.content, "found");
+        let history = sess.history();
+        // user, model(fc), tool(fr), model(text)  → 4 turns
+        assert_eq!(history.len(), 4, "history: {history:?}");
+        assert_eq!(host.invocations().len(), 1);
     }
 }
