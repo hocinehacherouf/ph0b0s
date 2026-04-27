@@ -86,23 +86,76 @@ impl AdkLlmAgent {
 
     async fn run_loop(
         &self,
-        messages: Vec<ChatMessage>,
+        initial_messages: Vec<ChatMessage>,
         schema: Option<serde_json::Value>,
-        _hints: &std::collections::BTreeMap<String, serde_json::Value>,
+        hints: &std::collections::BTreeMap<String, serde_json::Value>,
     ) -> Result<ChatResponse, LlmError> {
-        let adk_req = build_request(
-            &self.model_id,
-            &messages,
-            self.default_system.as_deref(),
-            schema,
-        );
-        let stream = self
-            .llm
-            .generate_content(adk_req, false)
-            .await
-            .map_err(map_adk_error)?;
-        let response = collect_final(stream).await?;
-        Ok(to_chat_response(response))
+        let max_turns = hints
+            .get("max_tool_turns")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as usize;
+
+        let mut contents =
+            build_initial_contents(&initial_messages, self.default_system.as_deref());
+
+        let mut cumulative = Usage::default();
+
+        for _turn in 0..max_turns {
+            let mut adk_req = adk_rust::LlmRequest::new(self.model_id.clone(), contents.clone());
+            if let Some(s) = schema.clone() {
+                adk_req = adk_req.with_response_schema(s);
+            }
+
+            let stream = self
+                .llm
+                .generate_content(adk_req, false)
+                .await
+                .map_err(map_adk_error)?;
+            let response = collect_final(stream).await?;
+            accumulate(
+                &mut cumulative,
+                &from_adk_usage(response.usage_metadata.as_ref()),
+            );
+            let last_finish = response.finish_reason;
+
+            let model_content = response
+                .content
+                .clone()
+                .unwrap_or_else(|| adk_rust::Content::new("model"));
+            let function_calls = collect_function_calls(&model_content);
+
+            if function_calls.is_empty() {
+                return Ok(ChatResponse {
+                    content: extract_text(Some(&model_content)),
+                    tool_calls: Vec::new(),
+                    usage: cumulative,
+                    finish_reason: map_finish_reason(last_finish),
+                });
+            }
+
+            contents.push(model_content);
+
+            let mut tool_parts = Vec::new();
+            for (name, args, id) in function_calls {
+                let result = match self.tool_host.as_ref() {
+                    Some(host) => host.invoke(&name, args.clone()).await,
+                    None => Err(ph0b0s_core::error::ToolError::Unknown(name.clone())),
+                };
+                let response_value = match result {
+                    Ok(v) => v,
+                    Err(e) => serde_json::json!({"error": e.to_string()}),
+                };
+                tool_parts.push(make_function_response_part(&name, response_value, id));
+            }
+
+            let mut tool_content = adk_rust::Content::new("tool");
+            tool_content.parts = tool_parts;
+            contents.push(tool_content);
+        }
+
+        Err(LlmError::ToolDispatch(format!(
+            "model exceeded max_tool_turns ({max_turns}) without producing a final reply"
+        )))
     }
 }
 
@@ -295,6 +348,57 @@ fn build_request(
         req = req.with_response_schema(s);
     }
     req
+}
+
+/// Build the initial `Vec<Content>` for the tool-call loop. Same logic as
+/// `build_request` minus the schema attachment (the loop re-attaches the
+/// schema on every turn).
+fn build_initial_contents(
+    messages: &[ChatMessage],
+    default_system: Option<&str>,
+) -> Vec<adk_rust::Content> {
+    let mut contents = Vec::new();
+    let has_explicit_system = messages
+        .iter()
+        .any(|m| matches!(m, ChatMessage::System { .. }));
+    if !has_explicit_system {
+        if let Some(sp) = default_system {
+            contents.push(adk_rust::Content::new("system").with_text(sp.to_owned()));
+        }
+    }
+    for m in messages {
+        contents.push(chat_message_to_content(m));
+    }
+    contents
+}
+
+/// Extract `(name, args, id)` triples for every `Part::FunctionCall` in `c`.
+fn collect_function_calls(
+    c: &adk_rust::Content,
+) -> Vec<(String, serde_json::Value, Option<String>)> {
+    c.parts
+        .iter()
+        .filter_map(|p| match p {
+            adk_rust::Part::FunctionCall { name, args, id, .. } => {
+                Some((name.clone(), args.clone(), id.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Build a `Part::FunctionResponse` for adk-rust 0.6.0. The variant nests a
+/// `FunctionResponseData { name, response, .. }` under the `function_response`
+/// field, with an optional `id` sibling for OpenAI-style providers.
+fn make_function_response_part(
+    name: &str,
+    response: serde_json::Value,
+    id: Option<String>,
+) -> adk_rust::Part {
+    adk_rust::Part::FunctionResponse {
+        function_response: adk_rust::FunctionResponseData::new(name, response),
+        id,
+    }
 }
 
 fn chat_message_to_content(m: &ChatMessage) -> adk_rust::Content {
@@ -656,5 +760,104 @@ mod tests {
         let s = format!("{agent:?}");
         assert!(s.contains("AdkLlmAgent"));
         assert!(s.contains("tool_host"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-turn tool-call loop tests
+    // -----------------------------------------------------------------------
+
+    /// Test fake of `adk_rust::Llm` that pops queued responses on each call.
+    /// We need this because adk-rust's stock `MockLlm` returns *all* canned
+    /// responses on every call to `generate_content`; a multi-turn test
+    /// needs each `generate_content` invocation to return *one* response.
+    #[derive(Clone)]
+    struct ScriptedLlm {
+        queue: Arc<Mutex<std::collections::VecDeque<adk_rust::LlmResponse>>>,
+    }
+
+    impl ScriptedLlm {
+        fn new(responses: Vec<adk_rust::LlmResponse>) -> Self {
+            Self {
+                queue: Arc::new(Mutex::new(responses.into_iter().collect())),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl adk_rust::Llm for ScriptedLlm {
+        async fn generate_content(
+            &self,
+            _req: adk_rust::LlmRequest,
+            _stream: bool,
+        ) -> adk_rust::Result<adk_rust::LlmResponseStream> {
+            let resp = self
+                .queue
+                .lock()
+                .unwrap()
+                .pop_front()
+                .ok_or_else(|| adk_rust::AdkError::model("ScriptedLlm queue empty"))?;
+            Ok(Box::pin(futures::stream::once(async move { Ok(resp) })))
+        }
+
+        fn name(&self) -> &str {
+            "scripted"
+        }
+    }
+
+    fn fc_response(name: &str, args: serde_json::Value) -> adk_rust::LlmResponse {
+        let mut content = adk_rust::Content::new("model");
+        content.parts.push(adk_rust::Part::FunctionCall {
+            name: name.into(),
+            args,
+            id: Some(format!("call_{name}")),
+            thought_signature: None,
+        });
+        adk_rust::LlmResponse {
+            content: Some(content),
+            usage_metadata: Some(adk_rust::UsageMetadata {
+                prompt_token_count: 5,
+                candidates_token_count: 5,
+                total_token_count: 10,
+                ..Default::default()
+            }),
+            finish_reason: None,
+            ..Default::default()
+        }
+    }
+
+    fn text_response(text: &str) -> adk_rust::LlmResponse {
+        adk_rust::LlmResponse {
+            content: Some(adk_rust::Content::new("model").with_text(text.to_owned())),
+            usage_metadata: Some(adk_rust::UsageMetadata {
+                prompt_token_count: 3,
+                candidates_token_count: 4,
+                total_token_count: 7,
+                ..Default::default()
+            }),
+            finish_reason: Some(adk_rust::FinishReason::Stop),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn chat_dispatches_function_call_and_returns_final_text() {
+        use ph0b0s_test_support::MockToolHost;
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![
+            fc_response("search", serde_json::json!({"q": "rustsec"})),
+            text_response("done: found 0 advisories"),
+        ]));
+        let host = Arc::new(MockToolHost::new());
+        host.enqueue_response("search", serde_json::json!({"hits": 0}));
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host.clone();
+        let agent = AdkLlmAgent::new(llm, "scripted").with_tool_host(host_dyn);
+        let req = ChatRequest::new().user("look up advisories");
+        let resp = agent.chat(req).await.unwrap();
+        assert_eq!(resp.content, "done: found 0 advisories");
+        let invs = host.invocations();
+        assert_eq!(invs.len(), 1);
+        assert_eq!(invs[0].0, "search");
+        // Usage accumulated across both turns: 5+3 in, 5+4 out.
+        assert_eq!(resp.usage.tokens_in, 8);
+        assert_eq!(resp.usage.tokens_out, 9);
     }
 }
