@@ -33,6 +33,11 @@ pub struct AdkLlmAgent {
     /// can override per-request via `ChatRequest.messages` containing a
     /// `System` message.
     default_system: Option<String>,
+    /// Optional `ToolHost` used by `chat()`'s tool-call loop. When `None`,
+    /// the loop will only fire if `req.tools` is empty AND the model emits
+    /// no `Part::FunctionCall` — it'll error if the model tries to call
+    /// any tool.
+    tool_host: Option<Arc<dyn ph0b0s_core::tools::ToolHost>>,
 }
 
 impl std::fmt::Debug for AdkLlmAgent {
@@ -41,6 +46,10 @@ impl std::fmt::Debug for AdkLlmAgent {
             .field("model_id", &self.model_id)
             .field("role", &self.role)
             .field("default_system", &self.default_system)
+            .field(
+                "tool_host",
+                &self.tool_host.as_ref().map(|_| "<dyn ToolHost>"),
+            )
             .field("llm", &"<dyn adk_core::Llm>")
             .finish()
     }
@@ -53,6 +62,7 @@ impl AdkLlmAgent {
             model_id: model_id.into(),
             role: AgentRoleKey::new("default"),
             default_system: None,
+            tool_host: None,
         }
     }
 
@@ -63,6 +73,14 @@ impl AdkLlmAgent {
 
     pub fn with_system_prompt(mut self, prompt: impl Into<String>) -> Self {
         self.default_system = Some(prompt.into());
+        self
+    }
+
+    /// Attach a `ToolHost` to this agent. Required for `chat()` to dispatch
+    /// model-emitted tool calls; without it, any `FunctionCall` in the model's
+    /// response feeds an `Unknown` error back into the loop.
+    pub fn with_tool_host(mut self, host: Arc<dyn ph0b0s_core::tools::ToolHost>) -> Self {
+        self.tool_host = Some(host);
         self
     }
 
@@ -625,5 +643,18 @@ mod tests {
         let a = AdkLlmAgent::new(mock_llm_empty(), "the-model").with_role("triager");
         assert_eq!(a.model_id(), "the-model");
         assert_eq!(a.role().0, "triager");
+    }
+
+    #[tokio::test]
+    async fn with_tool_host_attaches_host_to_agent() {
+        use ph0b0s_test_support::MockToolHost;
+        let llm = mock_llm_empty();
+        let host: Arc<dyn ph0b0s_core::tools::ToolHost> = Arc::new(MockToolHost::new());
+        let agent = AdkLlmAgent::new(llm, "mock").with_tool_host(host);
+        // No public accessor for the field; just confirm Debug works and
+        // doesn't panic, and the constructor chain compiles.
+        let s = format!("{agent:?}");
+        assert!(s.contains("AdkLlmAgent"));
+        assert!(s.contains("tool_host"));
     }
 }
