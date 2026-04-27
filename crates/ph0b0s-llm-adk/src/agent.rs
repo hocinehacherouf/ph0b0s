@@ -260,18 +260,12 @@ impl LlmSession for AdkSession {
         )
         .await?;
 
-        // Replace history with the final contents (which include all model +
-        // tool turns from the loop), and accumulate usage.
+        // Replace history with the final contents and accumulate usage.
         {
             let mut state = self.state.lock().expect("session state poisoned");
+            // run_loop_inner returns the complete history including the final
+            // assistant turn — replace state.history wholesale.
             state.history = final_contents;
-            // Append the final assistant text turn so subsequent sends see it
-            // as conversation history. (run_loop_inner returns history WITHOUT
-            // the final assistant text turn since it returns the response
-            // separately.)
-            state
-                .history
-                .push(adk_rust::Content::new("model").with_text(chat.content.clone()));
             accumulate(&mut state.cumulative, &chat.usage);
         }
         Ok(chat)
@@ -389,9 +383,10 @@ fn make_function_response_part(
 }
 
 /// Shared per-call multi-turn loop. Used by both `AdkLlmAgent::run_loop`
-/// and `AdkSession::send`. Returns the final `ChatResponse` and the full
-/// conversation history (including any model+tool turns appended during
-/// the loop). Caller decides whether to keep the history.
+/// and `AdkSession::send`. Returns the final `ChatResponse` and the
+/// complete conversation history (including all model+tool turns the
+/// loop appended, AND the final assistant turn). Caller decides whether
+/// to keep the history.
 async fn run_loop_inner(
     llm: &Arc<dyn adk_rust::Llm>,
     model_id: &str,
@@ -443,15 +438,16 @@ async fn run_loop_inner(
         let function_calls = collect_function_calls(&model_content);
 
         if function_calls.is_empty() {
-            return Ok((
-                ChatResponse {
-                    content: extract_text(Some(&model_content)),
-                    tool_calls: Vec::new(),
-                    usage: cumulative,
-                    finish_reason: map_finish_reason(last_finish),
-                },
-                contents,
-            ));
+            let response = ChatResponse {
+                content: extract_text(Some(&model_content)),
+                tool_calls: Vec::new(),
+                usage: cumulative,
+                finish_reason: map_finish_reason(last_finish),
+            };
+            // Push the final assistant turn so callers (sessions) get the full
+            // history without having to reconstruct it from text.
+            contents.push(model_content);
+            return Ok((response, contents));
         }
 
         last_call_names = function_calls.iter().map(|(n, _, _)| n.clone()).collect();
