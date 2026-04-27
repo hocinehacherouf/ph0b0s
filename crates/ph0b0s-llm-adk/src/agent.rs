@@ -87,6 +87,7 @@ impl AdkLlmAgent {
     async fn run_loop(
         &self,
         initial_messages: Vec<ChatMessage>,
+        req_tools: &[ph0b0s_core::llm::ToolSpec],
         schema: Option<serde_json::Value>,
         hints: &std::collections::BTreeMap<String, serde_json::Value>,
     ) -> Result<ChatResponse, LlmError> {
@@ -98,12 +99,27 @@ impl AdkLlmAgent {
         let mut contents =
             build_initial_contents(&initial_messages, self.default_system.as_deref());
 
+        let resolved_tools: Vec<ph0b0s_core::llm::ToolSpec> = if !req_tools.is_empty() {
+            req_tools.to_vec()
+        } else if let Some(host) = self.tool_host.as_ref() {
+            host.list()
+        } else {
+            Vec::new()
+        };
+
         let mut cumulative = Usage::default();
         let mut last_finish: Option<adk_rust::FinishReason> = None;
         let mut last_call_names: Vec<String> = Vec::new();
 
         for _turn in 0..max_turns {
             let mut adk_req = adk_rust::LlmRequest::new(self.model_id.clone(), contents.clone());
+            if !resolved_tools.is_empty() {
+                for spec in &resolved_tools {
+                    adk_req
+                        .tools
+                        .insert(spec.name.clone(), to_adk_tool_decl(spec));
+                }
+            }
             if let Some(s) = schema.clone() {
                 adk_req = adk_req.with_response_schema(s);
             }
@@ -169,14 +185,8 @@ impl AdkLlmAgent {
 impl LlmAgent for AdkLlmAgent {
     #[tracing::instrument(skip_all, fields(model = %self.model_id, role = %self.role.0))]
     async fn chat(&self, req: ChatRequest) -> Result<ChatResponse, LlmError> {
-        if !req.tools.is_empty() {
-            tracing::warn!(
-                tool_count = req.tools.len(),
-                "tools passed to chat() but tool-loop wiring is in progress; \
-                 dispatch is single-shot in this build"
-            );
-        }
-        self.run_loop(req.messages, None, &req.hints).await
+        self.run_loop(req.messages, &req.tools, None, &req.hints)
+            .await
     }
 
     #[tracing::instrument(skip_all, fields(model = %self.model_id, role = %self.role.0, schema = %req.schema_name))]
@@ -391,6 +401,17 @@ fn collect_function_calls(
             _ => None,
         })
         .collect()
+}
+
+/// Convert a seam `ToolSpec` to a JSON value that adk providers can
+/// deserialize as a function declaration. Best-effort JSON-Schema passthrough;
+/// adk normalizes for the underlying provider.
+fn to_adk_tool_decl(spec: &ph0b0s_core::llm::ToolSpec) -> serde_json::Value {
+    serde_json::json!({
+        "name": spec.name,
+        "description": spec.description.clone().unwrap_or_default(),
+        "parameters": spec.schema,
+    })
 }
 
 /// Build a `Part::FunctionResponse` for adk-rust 0.6.0. The variant nests a
@@ -966,5 +987,32 @@ mod tests {
         let resp = agent.chat(ChatRequest::new().user("go")).await.unwrap();
         // The model received a ToolError::Unknown payload and recovered.
         assert_eq!(resp.content, "done");
+    }
+
+    #[tokio::test]
+    async fn chat_uses_req_tools_override_when_provided() {
+        use ph0b0s_core::llm::{ToolSource, ToolSpec};
+        use ph0b0s_test_support::MockToolHost;
+
+        // Host has its own registered tool, but req.tools provides a different one.
+        // We can't observe what tools adk actually sent (MockLlm/ScriptedLlm don't
+        // expose the request), but we exercise the code path so it compiles +
+        // doesn't panic. Behavioral coverage of the override semantics will come
+        // when a live LLM observes the tool list.
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![text_response("ok")]));
+        let host = Arc::new(MockToolHost::new());
+        let host_dyn: Arc<dyn ph0b0s_core::tools::ToolHost> = host;
+        let agent = AdkLlmAgent::new(llm, "scripted").with_tool_host(host_dyn);
+
+        let mut req = ChatRequest::new().user("go");
+        req.tools.push(ToolSpec {
+            name: "specific".into(),
+            description: Some("a specific tool".into()),
+            schema: serde_json::json!({"type": "object"}),
+            source: ToolSource::Native,
+        });
+
+        let resp = agent.chat(req).await.unwrap();
+        assert_eq!(resp.content, "ok");
     }
 }
