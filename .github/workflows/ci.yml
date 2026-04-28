@@ -140,3 +140,44 @@ jobs:
         run: cargo build --release -p ph0b0s-cli
       - name: ph0b0s --help
         run: ./target/release/ph0b0s --help
+
+  live-ollama:
+    name: live (ollama)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux system deps
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ph0b0s-live-ollama
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-${{ runner.os }}-qwen2.5-coder-0.5b
+      - name: Install + start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434/api/tags > /dev/null; then
+              echo "ollama up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ollama failed to start"
+          tail /tmp/ollama.log
+          exit 1
+      - name: Pull model
+        run: ollama pull qwen2.5-coder:0.5b
+      - name: Run live tests
+        env:
+          OLLAMA_HOST: http://localhost:11434
+          PH0B0S_LIVE_OLLAMA_MODEL: qwen2.5-coder:0.5b
+        run: cargo test -p ph0b0s-llm-adk --test ollama_live -- --include-ignored

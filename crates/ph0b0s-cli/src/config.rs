@@ -74,6 +74,8 @@ impl Default for ScanConfig {
 #[serde(default)]
 pub struct ProviderConfig {
     pub default_model: Option<String>,
+    /// OpenAI-compatible endpoints + Ollama server URL.
+    pub base_url: Option<String>,
     // api_key NEVER here — read from env vars at runtime.
 }
 
@@ -81,7 +83,8 @@ pub struct ProviderConfig {
 #[serde(default)]
 pub struct AgentConfig {
     pub provider: String,
-    pub model: String,
+    /// Per-agent model override. `None` ⇒ use the per-provider default.
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -154,6 +157,34 @@ impl Config {
                 PathBuf::from(home).join(".local").join("state")
             });
         base.join("ph0b0s").join("findings.db")
+    }
+
+    /// Map the figment-loaded `HashMap<String, ProviderConfig>` to the
+    /// adapter's typed `ProviderRegistry`.
+    pub fn provider_registry(&self) -> ph0b0s_llm_adk::ProviderRegistry {
+        use ph0b0s_llm_adk::{ProviderConfig as AdkProviderConfig, ProviderRegistry};
+        let to_adk = |c: &ProviderConfig| AdkProviderConfig {
+            default_model: c.default_model.clone(),
+            base_url: c.base_url.clone(),
+        };
+        ProviderRegistry {
+            anthropic: self.providers.get("anthropic").map(to_adk),
+            openai: self.providers.get("openai").map(to_adk),
+            gemini: self.providers.get("gemini").map(to_adk),
+            ollama: self.providers.get("ollama").map(to_adk),
+        }
+    }
+
+    /// Map `[agents.default]` to the adapter's typed `AgentConfig`. Returns
+    /// `None` when no default agent is configured (callers fall back to the
+    /// env-key detection path).
+    pub fn default_agent(&self) -> Option<ph0b0s_llm_adk::AgentConfig> {
+        self.agents
+            .get("default")
+            .map(|a| ph0b0s_llm_adk::AgentConfig {
+                provider: a.provider.clone(),
+                model: a.model.clone(),
+            })
     }
 
     /// Effective config with secrets redacted, suitable for `config check`
@@ -295,5 +326,56 @@ default_model = "claude-sonnet-4-6"
         let mut v = serde_json::json!({"providers":{"anthropic":{"api_key":"secret"}}});
         scrub_api_keys(&mut v);
         assert_eq!(v["providers"]["anthropic"]["api_key"], "<redacted>");
+    }
+
+    #[test]
+    fn provider_registry_maps_known_providers_to_adk_types() {
+        let mut cfg = Config::default();
+        cfg.providers.insert(
+            "anthropic".into(),
+            ProviderConfig {
+                default_model: Some("claude-opus-4-7".into()),
+                base_url: None,
+            },
+        );
+        cfg.providers.insert(
+            "openai".into(),
+            ProviderConfig {
+                default_model: None,
+                base_url: Some("https://api.openrouter.ai/v1".into()),
+            },
+        );
+        let reg = cfg.provider_registry();
+        assert_eq!(
+            reg.anthropic.as_ref().unwrap().default_model.as_deref(),
+            Some("claude-opus-4-7")
+        );
+        assert_eq!(
+            reg.openai.as_ref().unwrap().base_url.as_deref(),
+            Some("https://api.openrouter.ai/v1")
+        );
+        assert!(reg.gemini.is_none());
+        assert!(reg.ollama.is_none());
+    }
+
+    #[test]
+    fn default_agent_returns_mapped_agent_config_when_present() {
+        let mut cfg = Config::default();
+        cfg.agents.insert(
+            "default".into(),
+            AgentConfig {
+                provider: "ollama".into(),
+                model: Some("qwen2.5:0.5b".into()),
+            },
+        );
+        let agent = cfg.default_agent().expect("default agent set");
+        assert_eq!(agent.provider, "ollama");
+        assert_eq!(agent.model.as_deref(), Some("qwen2.5:0.5b"));
+    }
+
+    #[test]
+    fn default_agent_returns_none_when_no_default_configured() {
+        let cfg = Config::default();
+        assert!(cfg.default_agent().is_none());
     }
 }

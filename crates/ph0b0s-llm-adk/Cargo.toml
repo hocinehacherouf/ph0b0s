@@ -20,3 +20,10 @@ tracing     = { workspace = true }
 
 # THE ONLY CRATE ALLOWED TO IMPORT adk-*. Pinned exactly.
 adk-rust    = { workspace = true }
+tokio-util  = { workspace = true }
+rmcp        = { workspace = true }
+
+[dev-dependencies]
+ph0b0s-test-support = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = { workspace = true }

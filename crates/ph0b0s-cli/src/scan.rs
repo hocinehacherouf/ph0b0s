@@ -108,8 +108,8 @@ pub async fn run(args: ScanArgs, config: Config, agent: AdkLlmAgent) -> Result<S
     let mut all_findings: Vec<Finding> = Vec::new();
     let mut errors: Vec<DetectorRunError> = Vec::new();
 
-    let agent_ref: Arc<AdkLlmAgent> = Arc::new(agent);
-    let tools_ref = Arc::new(tools);
+    let tools_ref: Arc<dyn ToolHost> = Arc::new(tools);
+    let agent_ref: Arc<AdkLlmAgent> = Arc::new(agent.with_tool_host(tools_ref.clone()));
 
     for resolved_det in resolved {
         let id = resolved_det.detector.metadata().id.clone();
