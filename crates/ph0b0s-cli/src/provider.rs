@@ -84,4 +84,52 @@ mod tests {
         let err = build_from_config(&cfg).unwrap_err();
         assert!(err.to_string().contains("no LLM provider"));
     }
+
+    /// Verifies the `EnvSaver::drop` restore-when-set branch: when a var was
+    /// already set before the saver captured it, dropping the saver must
+    /// re-apply that original value (not just unset).
+    #[test]
+    fn env_saver_restores_preexisting_value_on_drop() {
+        let _g = env_lock();
+        const KEY: &str = "PH0B0S_TEST_ENV_SAVER_RESTORE";
+
+        // Pre-set the var BEFORE constructing EnvSaver so drop hits the
+        // `Some(v)` arm.
+        // SAFETY: tests are serialized via env_lock().
+        unsafe {
+            std::env::set_var(KEY, "original");
+        }
+
+        // Also clear all provider keys so build_from_config errors out
+        // predictably while the saver is alive.
+        let provider_keys = [
+            "PH0B0S_PROVIDER",
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GOOGLE_API_KEY",
+            "OLLAMA_HOST",
+        ];
+        let provider_saver = EnvSaver::new(&provider_keys);
+
+        {
+            let _saver = EnvSaver::new(&[KEY]);
+            // The saver removed it; while alive, the var is unset.
+            assert!(std::env::var(KEY).is_err());
+
+            // Run a no-provider build to exercise the build-error path with
+            // a saver alive (mirrors how the real CLI tests use it).
+            let cfg = Config::default();
+            let err = build_from_config(&cfg).unwrap_err();
+            assert!(err.to_string().contains("no LLM provider"));
+        }
+        // Saver dropped — the original value must be restored.
+        assert_eq!(std::env::var(KEY).ok().as_deref(), Some("original"));
+
+        // Cleanup: drop the provider saver explicitly, then unset our key.
+        drop(provider_saver);
+        // SAFETY: see above.
+        unsafe {
+            std::env::remove_var(KEY);
+        }
+    }
 }

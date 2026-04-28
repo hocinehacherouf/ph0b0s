@@ -1087,6 +1087,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn adk_session_debug_includes_history_len_and_struct_name() {
+        let llm = mock_llm_empty();
+        let sess = AdkSession::new(llm, "the-model", Some("be brief".into()), None);
+        let s = format!("{sess:?}");
+        assert!(s.contains("AdkSession"), "got: {s}");
+        assert!(s.contains("history_len"), "got: {s}");
+        // System prompt seeds history with one entry.
+        assert!(s.contains("history_len: 1"), "got: {s}");
+    }
+
+    #[tokio::test]
+    async fn chat_request_with_assistant_message_runs_through_loop() {
+        // Exercises the ChatMessage::Assistant arm of chat_message_to_content.
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![text_response("ok")]));
+        let agent = AdkLlmAgent::new(llm, "scripted");
+        let mut req = ChatRequest::new().user("hi");
+        req.messages.push(ChatMessage::Assistant {
+            content: "previous reply".into(),
+            tool_calls: Vec::new(),
+        });
+        req.messages.push(ChatMessage::User {
+            content: "follow up".into(),
+        });
+        let resp = agent.chat(req).await.unwrap();
+        assert_eq!(resp.content, "ok");
+    }
+
+    #[tokio::test]
+    async fn chat_request_with_tool_message_runs_through_loop() {
+        // Exercises the ChatMessage::Tool arm of chat_message_to_content.
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![text_response("ok")]));
+        let agent = AdkLlmAgent::new(llm, "scripted");
+        let mut req = ChatRequest::new().user("hi");
+        req.messages.push(ChatMessage::Tool {
+            tool_call_id: "call_1".into(),
+            name: "search".into(),
+            content: "{\"hits\":0}".into(),
+        });
+        let resp = agent.chat(req).await.unwrap();
+        assert_eq!(resp.content, "ok");
+    }
+
+    #[tokio::test]
     async fn session_send_dispatches_function_call_and_extends_history() {
         use ph0b0s_test_support::MockToolHost;
         let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![

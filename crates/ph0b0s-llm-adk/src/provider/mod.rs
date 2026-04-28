@@ -281,4 +281,55 @@ mod selection_tests {
         let agent = build_from_config(Some(&agent_cfg), &registry).unwrap();
         assert_eq!(agent.model_id(), "claude-opus-4-7");
     }
+
+    #[test]
+    fn env_fallback_picks_openai_when_only_openai_set() {
+        let _g = env_lock();
+        clear_provider_env();
+        let _v = EnvVarGuard::set("OPENAI_API_KEY", "sk-test");
+        let agent = build_from_config(None, &ProviderRegistry::default()).unwrap();
+        // Default OpenAI model.
+        assert!(
+            agent.model_id().starts_with("gpt-"),
+            "got {}",
+            agent.model_id()
+        );
+    }
+
+    #[test]
+    fn env_fallback_picks_gemini_when_only_google_set() {
+        let _g = env_lock();
+        clear_provider_env();
+        let _v = EnvVarGuard::set("GOOGLE_API_KEY", "AIza-test");
+        let agent = build_from_config(None, &ProviderRegistry::default()).unwrap();
+        // Default Gemini model.
+        assert!(
+            agent.model_id().starts_with("gemini-"),
+            "got {}",
+            agent.model_id()
+        );
+    }
+
+    #[test]
+    fn env_fallback_picks_ollama_when_only_ollama_host_set() {
+        let _g = env_lock();
+        clear_provider_env();
+        let _v = EnvVarGuard::set("OLLAMA_HOST", "http://localhost:11434");
+        let agent = build_from_config(None, &ProviderRegistry::default()).unwrap();
+        // Default Ollama model contains a tag separator (e.g. "llama3.2:3b").
+        assert!(agent.model_id().contains(':'), "got {}", agent.model_id());
+    }
+
+    #[test]
+    fn agent_config_provider_openai_uses_openai_builder() {
+        let _g = env_lock();
+        clear_provider_env();
+        let _v = EnvVarGuard::set("OPENAI_API_KEY", "sk-test");
+        let agent_cfg = AgentConfig {
+            provider: "openai".into(),
+            model: Some("gpt-4o-mini".into()),
+        };
+        let agent = build_from_config(Some(&agent_cfg), &ProviderRegistry::default()).unwrap();
+        assert_eq!(agent.model_id(), "gpt-4o-mini");
+    }
 }

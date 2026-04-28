@@ -157,3 +157,58 @@ impl NativeTool for McpToolWrapper {
             .map_err(|e| ToolError::Execution(format!("{}: {e}", self.server_name)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn mount_rejects_sse_transport() {
+        let spec = McpServerSpec {
+            name: "fake-sse".into(),
+            transport: McpTransport::Sse,
+            command_or_url: vec!["http://localhost:1234".into()],
+            env: HashMap::new(),
+        };
+        match mount(spec).await {
+            Err(ToolError::McpTransport(msg)) => {
+                assert!(msg.contains("non-stdio"), "got: {msg}");
+            }
+            Err(other) => panic!("expected McpTransport, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn mount_rejects_streamable_http_transport() {
+        let spec = McpServerSpec {
+            name: "fake-http".into(),
+            transport: McpTransport::StreamableHttp,
+            command_or_url: vec!["http://localhost:1234".into()],
+            env: HashMap::new(),
+        };
+        match mount(spec).await {
+            Err(ToolError::McpTransport(_)) => {}
+            Err(other) => panic!("expected McpTransport, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn mount_rejects_stdio_with_empty_command() {
+        let spec = McpServerSpec {
+            name: "fake-stdio".into(),
+            transport: McpTransport::Stdio,
+            command_or_url: vec![],
+            env: HashMap::new(),
+        };
+        match mount(spec).await {
+            Err(ToolError::McpTransport(msg)) => {
+                assert!(msg.contains("no command"), "got: {msg}");
+            }
+            Err(other) => panic!("expected McpTransport, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+}
