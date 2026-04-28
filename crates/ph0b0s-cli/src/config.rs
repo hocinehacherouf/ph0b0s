@@ -327,4 +327,55 @@ default_model = "claude-sonnet-4-6"
         scrub_api_keys(&mut v);
         assert_eq!(v["providers"]["anthropic"]["api_key"], "<redacted>");
     }
+
+    #[test]
+    fn provider_registry_maps_known_providers_to_adk_types() {
+        let mut cfg = Config::default();
+        cfg.providers.insert(
+            "anthropic".into(),
+            ProviderConfig {
+                default_model: Some("claude-opus-4-7".into()),
+                base_url: None,
+            },
+        );
+        cfg.providers.insert(
+            "openai".into(),
+            ProviderConfig {
+                default_model: None,
+                base_url: Some("https://api.openrouter.ai/v1".into()),
+            },
+        );
+        let reg = cfg.provider_registry();
+        assert_eq!(
+            reg.anthropic.as_ref().unwrap().default_model.as_deref(),
+            Some("claude-opus-4-7")
+        );
+        assert_eq!(
+            reg.openai.as_ref().unwrap().base_url.as_deref(),
+            Some("https://api.openrouter.ai/v1")
+        );
+        assert!(reg.gemini.is_none());
+        assert!(reg.ollama.is_none());
+    }
+
+    #[test]
+    fn default_agent_returns_mapped_agent_config_when_present() {
+        let mut cfg = Config::default();
+        cfg.agents.insert(
+            "default".into(),
+            AgentConfig {
+                provider: "ollama".into(),
+                model: Some("qwen2.5:0.5b".into()),
+            },
+        );
+        let agent = cfg.default_agent().expect("default agent set");
+        assert_eq!(agent.provider, "ollama");
+        assert_eq!(agent.model.as_deref(), Some("qwen2.5:0.5b"));
+    }
+
+    #[test]
+    fn default_agent_returns_none_when_no_default_configured() {
+        let cfg = Config::default();
+        assert!(cfg.default_agent().is_none());
+    }
 }

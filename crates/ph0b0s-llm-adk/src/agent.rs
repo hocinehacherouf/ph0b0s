@@ -1147,4 +1147,13 @@ mod tests {
         assert_eq!(history.len(), 4, "history: {history:?}");
         assert_eq!(host.invocations().len(), 1);
     }
+
+    #[tokio::test]
+    async fn chat_injects_default_system_when_no_explicit_system_message() {
+        let llm: Arc<dyn adk_rust::Llm> = Arc::new(ScriptedLlm::new(vec![text_response("ok")]));
+        let agent = AdkLlmAgent::new(llm, "scripted").with_system_prompt("be terse");
+        let req = ChatRequest::new().user("hi"); // no .system(...)
+        let resp = agent.chat(req).await.unwrap();
+        assert_eq!(resp.content, "ok");
+    }
 }

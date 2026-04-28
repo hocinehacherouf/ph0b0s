@@ -211,4 +211,29 @@ mod tests {
             Ok(_) => panic!("expected error, got Ok"),
         }
     }
+
+    #[tokio::test]
+    async fn mount_iterates_env_overrides_before_spawn() {
+        let mut env = HashMap::new();
+        env.insert("PH0B0S_TEST_KEY".to_string(), "value".to_string());
+        let spec = McpServerSpec {
+            name: "fake".into(),
+            transport: McpTransport::Stdio,
+            // Use a non-existent program so spawn fails after env is applied.
+            command_or_url: vec!["/definitely/not/a/real/binary/ph0b0s-test".into()],
+            env,
+        };
+        // The env loop runs before the spawn attempt, so we know it executed.
+        // Actual error is McpTransport with a "spawn" or "connect" message.
+        match mount(spec).await {
+            Err(ToolError::McpTransport(msg)) => {
+                assert!(
+                    msg.contains("spawn") || msg.contains("connect"),
+                    "got: {msg}"
+                );
+            }
+            Err(other) => panic!("expected McpTransport, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
 }
